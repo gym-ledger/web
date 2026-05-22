@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, Trophy, ChevronRight } from "lucide-react";
+import { Bell, Trophy, ChevronRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { TodayCard } from "@/components/home/today-card";
 import { StatsRow } from "@/components/home/stats-row";
@@ -30,7 +30,7 @@ export default function HomePage() {
         <div>
           <p className="text-sm text-muted-foreground">{getGreeting()}</p>
           <h1 className="text-2xl font-bold text-foreground">
-            {currentUser.name.split(" ")[0]} 👋
+            {currentUser.name.split(" ")[0]}
           </h1>
         </div>
         <Link href="/notifications">
@@ -112,7 +112,7 @@ export default function HomePage() {
                     )}
                   >
                     {trained ? (
-                      <span className="text-xs font-bold">✓</span>
+                      <Check className="size-3.5" />
                     ) : (
                       <span className="size-1.5 rounded-full bg-muted-foreground/30" />
                     )}

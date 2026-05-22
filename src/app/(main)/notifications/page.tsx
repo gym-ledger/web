@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Trophy, Flame, Dumbbell, TrendingUp, Target, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { notifications as initialNotifications } from "@/lib/data/progress";
 import { cn } from "@/lib/utils";
+
+const notifIcons: Record<string, React.ElementType> = {
+  pr: Trophy,
+  streak: Flame,
+  reminder: Dumbbell,
+  progress: TrendingUp,
+  milestone: Target,
+};
 
 export default function NotificationsPage() {
   const [notifs, setNotifs] = useState(initialNotifications);
@@ -68,8 +76,8 @@ export default function NotificationsPage() {
           >
             {/* Unread indicator */}
             <div className="relative shrink-0 mt-0.5">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary text-xl">
-                {notif.emoji}
+              <div className="flex size-11 items-center justify-center rounded-xl bg-secondary">
+                {(() => { const NIcon = notifIcons[notif.type] ?? Dumbbell; return <NIcon className="size-5 text-primary" />; })()}
               </div>
               {!notif.read && (
                 <div className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-primary ring-2 ring-background" />
@@ -100,7 +108,7 @@ export default function NotificationsPage() {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center gap-2 py-12 text-center"
           >
-            <span className="text-4xl">✅</span>
+            <CheckCircle2 className="size-10 text-primary" />
             <p className="text-sm font-medium text-foreground">All caught up</p>
             <p className="text-xs text-muted-foreground">No unread notifications</p>
           </motion.div>

@@ -182,7 +182,6 @@ export interface AppNotification {
   body: string;
   timestamp: string;
   read: boolean;
-  emoji: string;
 }
 
 // Onboarding types

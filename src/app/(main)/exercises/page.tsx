@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, Dumbbell, Settings2, Link2, User, Gauge } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
 import { exercises, muscleGroups } from "@/lib/data/exercises";
@@ -15,14 +15,14 @@ const difficultyColors = {
   advanced: "text-red-400 bg-red-400/10",
 };
 
-const equipmentIcons: Record<string, string> = {
-  barbell: "🏋️",
-  dumbbell: "💪",
-  machine: "⚙️",
-  cable: "🔗",
-  bodyweight: "🤸",
-  kettlebell: "🫙",
-  "ez-bar": "〰️",
+const equipmentIcons: Record<string, React.ElementType> = {
+  barbell: Dumbbell,
+  dumbbell: Dumbbell,
+  machine: Settings2,
+  cable: Link2,
+  bodyweight: User,
+  kettlebell: Gauge,
+  "ez-bar": Dumbbell,
 };
 
 function muscleFilterMatch(exercise: typeof exercises[0], filter: string) {
@@ -98,11 +98,13 @@ export default function ExercisesPage() {
       <div className="flex flex-col gap-2 px-4 pb-4">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <span className="text-3xl">🔍</span>
+            <Search className="size-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">No exercises found for &quot;{query}&quot;</p>
           </div>
         ) : (
-          filtered.map((ex, i) => (
+          filtered.map((ex, i) => {
+            const EquipIcon = equipmentIcons[ex.equipment] ?? Dumbbell;
+            return (
             <motion.div
               key={ex.id}
               initial={{ opacity: 0, y: 6 }}
@@ -112,8 +114,8 @@ export default function ExercisesPage() {
               <Link href={`/exercises/${ex.id}`}>
                 <div className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
                   {/* Equipment icon */}
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary text-xl">
-                    {equipmentIcons[ex.equipment] ?? "💪"}
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
+                    <EquipIcon className="size-5 text-muted-foreground" />
                   </div>
 
                   {/* Info */}
@@ -147,7 +149,8 @@ export default function ExercisesPage() {
                 </div>
               </Link>
             </motion.div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

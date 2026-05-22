@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Settings, Edit2, Star, Award } from "lucide-react";
+import { Settings, Edit2, Star, Award, Flame, Zap, Dumbbell, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { currentUser, achievements, favoriteExercises } from "@/lib/data/user";
 import { exercises } from "@/lib/data/exercises";
@@ -12,6 +12,13 @@ const formatNumber = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return `${n}`;
+};
+
+const achievementIcons: Record<string, React.ElementType> = {
+  "first-workout": Dumbbell,
+  "streak-7": Flame,
+  "100-workouts": Award,
+  "pr-master": Trophy,
 };
 
 export default function ProfilePage() {
@@ -82,21 +89,21 @@ export default function ProfilePage() {
         className="grid grid-cols-2 gap-3 mb-5"
       >
         {[
-          { label: "Workouts", value: `${currentUser.stats.totalWorkouts}`, emoji: "🏋️" },
-          { label: "Personal Records", value: `${currentUser.stats.totalPRs}`, emoji: "🏆" },
-          { label: "Best Streak", value: `${currentUser.stats.longestStreak}d`, emoji: "🔥" },
-          { label: "Volume lifted", value: formatNumber(currentUser.stats.totalVolume) + "kg", emoji: "⚡" },
-        ].map((stat, i) => (
+          { label: "Workouts", value: `${currentUser.stats.totalWorkouts}`, icon: Dumbbell },
+          { label: "Personal Records", value: `${currentUser.stats.totalPRs}`, icon: Trophy },
+          { label: "Best Streak", value: `${currentUser.stats.longestStreak}d`, icon: Flame },
+          { label: "Volume lifted", value: formatNumber(currentUser.stats.totalVolume) + "kg", icon: Zap },
+        ].map(({ label, value, icon: StatIcon }, i) => (
           <motion.div
-            key={stat.label}
+            key={label}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.08 + i * 0.04 }}
             className="flex flex-col gap-1.5 rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
           >
-            <span className="text-xl">{stat.emoji}</span>
-            <p className="text-2xl font-black text-foreground tabular-nums">{stat.value}</p>
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <StatIcon className="size-5 text-primary" />
+            <p className="text-2xl font-black text-foreground tabular-nums">{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
           </motion.div>
         ))}
       </motion.div>
@@ -126,9 +133,10 @@ export default function ProfilePage() {
                   : "bg-secondary/30 ring-foreground/5"
               )}
             >
-              <span className={cn("text-2xl", !achievement.unlocked && "grayscale opacity-40")}>
-                {achievement.emoji}
-              </span>
+              {(() => {
+                const AchIcon = achievementIcons[achievement.id] ?? Award;
+                return <AchIcon className={cn("size-6 text-primary", !achievement.unlocked && "opacity-30")} />;
+              })()}
               <div>
                 <p
                   className={cn(
@@ -168,8 +176,8 @@ export default function ProfilePage() {
             ex && (
               <Link key={ex.id} href={`/exercises/${ex.id}`}>
                 <div className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm">
-                    🏋️
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                    <Dumbbell className="size-4 text-muted-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">{ex.name}</p>

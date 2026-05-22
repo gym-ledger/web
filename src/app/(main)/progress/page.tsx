@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { TrendingUp, Dumbbell, Clock, Target } from "lucide-react";
+import { TrendingUp, Dumbbell, Clock, Target, Ruler } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { LineChart, BarChart } from "@/components/progress/mini-chart";
@@ -248,7 +248,7 @@ export default function ProgressPage() {
               className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 flex flex-col items-center gap-3 text-center"
             >
               <div className="flex size-14 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-2xl">📏</span>
+                <Ruler className="size-6 text-primary" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-foreground">Body metrics</h3>

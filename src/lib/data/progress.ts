@@ -104,7 +104,6 @@ export const notifications: AppNotification[] = [
     body: "You hit a new personal record on the Bench Press — 92.5kg for 5 reps. Keep pushing!",
     timestamp: "1h ago",
     read: false,
-    emoji: "🏆",
   },
   {
     id: "notif-2",
@@ -113,7 +112,6 @@ export const notifications: AppNotification[] = [
     body: "You're on fire! 12 consecutive training days. Stay consistent and you'll beat your record of 28 days.",
     timestamp: "3h ago",
     read: false,
-    emoji: "🔥",
   },
   {
     id: "notif-3",
@@ -122,7 +120,6 @@ export const notifications: AppNotification[] = [
     body: "Your scheduled Push Day workout is coming up. Time to warm up and get ready.",
     timestamp: "5h ago",
     read: true,
-    emoji: "💪",
   },
   {
     id: "notif-4",
@@ -131,7 +128,6 @@ export const notifications: AppNotification[] = [
     body: "This week you moved 24,800kg total — 8% more than last week. Your progressive overload is working.",
     timestamp: "1d ago",
     read: true,
-    emoji: "📈",
   },
   {
     id: "notif-5",
@@ -140,6 +136,5 @@ export const notifications: AppNotification[] = [
     body: "You've completed Week 8 of your PPL program. 4 more weeks to go in this mesocycle.",
     timestamp: "2d ago",
     read: true,
-    emoji: "🎯",
   },
 ];
