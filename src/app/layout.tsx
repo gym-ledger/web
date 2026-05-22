@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/shared/providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gym App",
-  description: "Workout tracking app",
+  title: "APEX — Science-based Training",
+  description: "Track workouts, build strength, achieve your goals.",
 };
 
 export const viewport = {
@@ -32,9 +33,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full bg-background text-foreground">
+        <div className="relative mx-auto max-w-md min-h-screen bg-background">
+          <Providers>{children}</Providers>
+        </div>
+      </body>
     </html>
   );
 }
