@@ -1,39 +1,70 @@
+import { getValidAccessToken, refreshAccessToken, performLogout } from "@/auth/tokenManager";
+import { useAuthStore } from "@/auth/authStore";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
+type RequestOptions = Omit<RequestInit, "headers"> & {
+  headers?: Record<string, string>;
+  _retried?: boolean;
+};
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { _retried, headers: extraHeaders, ...fetchOptions } = options;
+
+  let token: string | null = null;
   try {
-    const raw = localStorage.getItem("apex-auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { accessToken?: string };
-    return parsed?.accessToken ?? null;
+    token = await getValidAccessToken();
   } catch {
-    return null;
+    // No active session — proceed unauthenticated (e.g., login endpoints)
   }
-}
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const isFormData = fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(!isFormData && { "Content-Type": "application/json" }),
+    ...extraHeaders,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  const body = await res.json().catch(() => null) as {
+  const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+
+  if (res.status === 401 && !_retried) {
+    const { refreshToken } = useAuthStore.getState();
+    if (!refreshToken) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    let newToken: string;
+    try {
+      newToken = await refreshAccessToken();
+    } catch {
+      performLogout();
+      throw new ApiError(401, "Session expired");
+    }
+
+    return request<T>(path, {
+      ...options,
+      _retried: true,
+      headers: { ...extraHeaders, Authorization: `Bearer ${newToken}` },
+    });
+  }
+
+  type ApiBody = {
     success?: boolean;
     data?: T;
     error?: { message?: string };
     message?: string;
-  } | null;
+  };
+  const body = (await res.json().catch(() => null)) as ApiBody | null;
 
   if (!res.ok || body?.success === false) {
     const message = body?.error?.message ?? body?.message ?? "Something went wrong";
@@ -45,9 +76,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
+
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
+    request<T>(path, {
+      method: "POST",
+      body: body instanceof FormData ? body : JSON.stringify(body),
+    }),
+
   put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+    request<T>(path, {
+      method: "PUT",
+      body: body instanceof FormData ? body : JSON.stringify(body),
+    }),
+
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };

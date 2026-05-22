@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { useAuthStore } from "@/auth/authStore";
 
 type Step = "input" | "otp";
 type Method = "email" | "phone";
@@ -16,7 +17,8 @@ type Method = "email" | "phone";
 interface VerifyResponse {
   accessToken: string;
   refreshToken: string;
-  user: unknown;
+  accessTokenExpiresAt: string | number;
+  user: { id: string; email?: string; phone_number?: string; phone_country_code?: string };
 }
 
 const COUNTRY_CODES = [
@@ -34,6 +36,7 @@ const RESEND_COOLDOWN = 60;
 
 export default function LoginPage() {
   const router = useRouter();
+  const setTokens = useAuthStore((s) => s.setTokens);
 
   const [step, setStep] = useState<Step>("input");
   const [method, setMethod] = useState<Method>("email");
@@ -93,9 +96,13 @@ export default function LoginPage() {
     try {
       const body = { ...buildSendBody(), otp };
       const data = await apiClient.post<VerifyResponse>("/auth/login/verify-otp", body);
-      localStorage.setItem(
-        "apex-auth",
-        JSON.stringify({ accessToken: data.accessToken, refreshToken: data.refreshToken }),
+      setTokens(
+        {
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          accessTokenExpiresAt: data.accessTokenExpiresAt,
+        },
+        data.user,
       );
       router.push("/home");
     } catch (err) {
