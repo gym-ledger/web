@@ -5,6 +5,7 @@ import { Bell, Trophy, ChevronRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { TodayCard } from "@/components/home/today-card";
 import { StatsRow } from "@/components/home/stats-row";
+import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
 import { currentUser, weeklyConsistency } from "@/lib/data/user";
 import { todayWorkout } from "@/lib/data/workouts";
 import { recentPRs } from "@/lib/data/progress";
@@ -56,6 +57,14 @@ export default function HomePage() {
             weeklyVolume={currentUser.stats.weeklyVolume}
             monthlyWorkouts={currentUser.stats.monthlyWorkouts}
           />
+        </div>
+
+        {/* Weight widget */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-foreground">Weight</h2>
+          </div>
+          <WeightHomeWidget />
         </div>
 
         {/* Recent PRs */}
