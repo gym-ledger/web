@@ -33,7 +33,7 @@ export const workoutPrograms: WorkoutProgram[] = [
       {
         id: "ppl-push-a",
         name: "Push A",
-        dayNumber: 1,
+        day_number: 1,
         exercises: [
           {
             id: "ppl-bench",
@@ -80,7 +80,7 @@ export const workoutPrograms: WorkoutProgram[] = [
       {
         id: "ppl-pull-a",
         name: "Pull A",
-        dayNumber: 2,
+        day_number: 2,
         exercises: [
           {
             id: "ppl-deadlift",
@@ -135,7 +135,7 @@ export const workoutPrograms: WorkoutProgram[] = [
       {
         id: "ppl-legs-a",
         name: "Legs A",
-        dayNumber: 3,
+        day_number: 3,
         exercises: [
           {
             id: "ppl-squat",
@@ -187,7 +187,7 @@ export const workoutPrograms: WorkoutProgram[] = [
       {
         id: "ul-upper-a",
         name: "Upper A (Strength)",
-        dayNumber: 1,
+        day_number: 1,
         exercises: [
           {
             id: "ul-bench",
@@ -234,7 +234,7 @@ export const workoutPrograms: WorkoutProgram[] = [
       {
         id: "ul-lower-a",
         name: "Lower A (Strength)",
-        dayNumber: 2,
+        day_number: 2,
         exercises: [
           {
             id: "ul-squat",
