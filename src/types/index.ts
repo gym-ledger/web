@@ -82,7 +82,7 @@ export interface WorkoutProgram {
 export interface WorkoutDay {
   id: string;
   name: string;
-  dayNumber: number;
+  day_number: number;
   exercises: WorkoutExercise[];
 }
 

@@ -22,7 +22,7 @@ interface VerifyResponse {
 }
 
 const COUNTRY_CODES = [
-  { code: "+1",  label: "+1  US/CA" },
+  { code: "+1", label: "+1  US/CA" },
   { code: "+44", label: "+44 UK" },
   { code: "+91", label: "+91 IN" },
   { code: "+61", label: "+61 AU" },
@@ -42,7 +42,7 @@ export default function LoginPage() {
   const [method, setMethod] = useState<Method>("email");
 
   // input step
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("user@user.com");
   const [phoneCode, setPhoneCode] = useState("+1");
   const [phoneNumber, setPhoneNumber] = useState("");
 
