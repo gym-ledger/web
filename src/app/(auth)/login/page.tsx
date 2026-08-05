@@ -88,13 +88,12 @@ export default function LoginPage() {
     }
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (otp.length < 4) return;
+  async function submitOtp(otpValue: string) {
+    if (otpValue.length < 4 || loading) return;
     setLoading(true);
     setError(null);
     try {
-      const body = { ...buildSendBody(), otp };
+      const body = { ...buildSendBody(), otp: otpValue };
       const data = await apiClient.post<VerifyResponse>("/auth/login/verify-otp", body);
       setTokens(
         {
@@ -112,12 +111,22 @@ export default function LoginPage() {
     }
   }
 
+  function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    submitOtp(otp);
+  }
+
   function handleOtpInput(index: number, value: string) {
     const digit = value.replace(/\D/g, "").slice(-1);
     const next = [...otpDigits];
     next[index] = digit;
     setOtpDigits(next);
-    if (digit && index < 3) otpRefs.current[index + 1]?.focus();
+    if (digit && index < 3) {
+      otpRefs.current[index + 1]?.focus();
+    } else if (digit && index === 3 && next.every(Boolean)) {
+      otpRefs.current[index]?.blur();
+      submitOtp(next.join(""));
+    }
   }
 
   function handleOtpKeyDown(index: number, e: React.KeyboardEvent) {
@@ -133,6 +142,7 @@ export default function LoginPage() {
     for (let i = 0; i < text.length; i++) next[i] = text[i];
     setOtpDigits(next);
     otpRefs.current[Math.min(text.length, 3)]?.focus();
+    if (text.length === 4) submitOtp(text);
   }
 
   function switchMethod() {
