@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, Trophy, ChevronRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { TodayCard } from "@/components/home/today-card";
+import { OngoingWorkoutBanner } from "@/components/home/ongoing-workout-banner";
 import { HomeworkWidget } from "@/components/home/homework-widget";
 import { StatsRow } from "@/components/home/stats-row";
 import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
@@ -44,6 +45,9 @@ export default function HomePage() {
       </motion.div>
 
       <div className="flex flex-col gap-6 mt-4">
+        {/* Ongoing workout — resume if one was left unfinished */}
+        <OngoingWorkoutBanner />
+
         {/* Homework — flagged alarms from past workout sets, until discarded */}
         <HomeworkWidget />
 

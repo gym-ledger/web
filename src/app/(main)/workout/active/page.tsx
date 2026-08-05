@@ -18,6 +18,7 @@ import {
   fetchSessionSets,
   startWorkoutSession,
   finishWorkoutSession,
+  fetchOngoingWorkoutSession,
   type WorkoutPlanAssignment,
   type ProgramDay,
   type ProgramDaySession,
@@ -138,22 +139,97 @@ export default function ActiveWorkoutPage() {
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
-  // Step 1: resolve which plan we're training under.
-  useEffect(() => {
-    fetchActiveWorkoutPlans()
-      .then((plans) => {
-        setActiveAssignments(plans);
-        if (plans.length === 0) {
-          setStep("no-plans");
-        } else if (plans.length === 1) {
-          setAssignment(plans[0]);
-          setStep("pick-day");
-        } else {
-          setStep("pick-assignment");
+  function pickFromAssignments(plans: WorkoutPlanAssignment[]) {
+    setActiveAssignments(plans);
+    if (plans.length === 0) {
+      setStep("no-plans");
+    } else if (plans.length === 1) {
+      setAssignment(plans[0]);
+      setStep("pick-day");
+    } else {
+      setStep("pick-assignment");
+    }
+  }
+
+  const startSession = useCallback(
+    async (assignmentArg: WorkoutPlanAssignment, dayArg: ProgramDay, session: ProgramDaySession) => {
+      setStep("starting");
+      try {
+        const [ws, ex] = await Promise.all([
+          startWorkoutSession({
+            assignmentId: assignmentArg.id,
+            programDayId: dayArg.id,
+            programDaySessionId: session.id,
+          }),
+          fetchSessionExercises(assignmentArg.id, dayArg.id, session.id),
+        ]);
+        setWorkoutSession(ws);
+        setExercises(ex);
+
+        const existingSets = await fetchSessionSets(ws.id);
+        const grouped: Record<string, WorkoutSet[]> = {};
+        for (const s of existingSets) {
+          (grouped[s.workout_program_exercise_id] ??= []).push(s);
         }
-      })
-      .catch(() => setStep("error"));
-  }, []);
+        setSetsByExercise(grouped);
+        setStep("active");
+      } catch {
+        setStep("error");
+      }
+    },
+    [],
+  );
+
+  // Step 1: check for a workout already in progress (e.g. the app was
+  // backgrounded or the page reloaded mid-workout) and jump straight back
+  // into it; otherwise resolve which plan we're training under as normal.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      try {
+        const ongoing = await fetchOngoingWorkoutSession();
+        if (cancelled) return;
+
+        if (ongoing?.program_day_id && ongoing.program_day_session_id) {
+          const [plans, dayList] = await Promise.all([
+            fetchActiveWorkoutPlans(),
+            fetchProgramDays(ongoing.assignment_id),
+          ]);
+          if (cancelled) return;
+          const assignmentObj = plans.find((p) => p.id === ongoing.assignment_id);
+          const dayObj = dayList.find((d) => d.id === ongoing.program_day_id);
+          if (assignmentObj && dayObj) {
+            const sessionList = await fetchProgramDaySessions(ongoing.assignment_id, dayObj.id);
+            if (cancelled) return;
+            const sessionObj = sessionList.find((s) => s.id === ongoing.program_day_session_id);
+            if (sessionObj) {
+              setActiveAssignments(plans);
+              setAssignment(assignmentObj);
+              setDays(dayList);
+              setDaysLoading(false);
+              setDay(dayObj);
+              setSessions(sessionList);
+              setSessionsLoading(false);
+              await startSession(assignmentObj, dayObj, sessionObj);
+              return;
+            }
+          }
+          pickFromAssignments(plans);
+          return;
+        }
+
+        pickFromAssignments(await fetchActiveWorkoutPlans());
+      } catch {
+        if (!cancelled) setStep("error");
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [startSession]);
 
   // Step 2: once a plan is chosen, load its days.
   useEffect(() => {
@@ -174,36 +250,6 @@ export default function ActiveWorkoutPage() {
     setStep("pick-session");
   }
 
-  const startSession = useCallback(
-    async (session: ProgramDaySession) => {
-      if (!assignment || !day) return;
-      setStep("starting");
-      try {
-        const [ws, ex] = await Promise.all([
-          startWorkoutSession({
-            assignmentId: assignment.id,
-            programDayId: day.id,
-            programDaySessionId: session.id,
-          }),
-          fetchSessionExercises(assignment.id, day.id, session.id),
-        ]);
-        setWorkoutSession(ws);
-        setExercises(ex);
-
-        const existingSets = await fetchSessionSets(ws.id);
-        const grouped: Record<string, WorkoutSet[]> = {};
-        for (const s of existingSets) {
-          (grouped[s.workout_program_exercise_id] ??= []).push(s);
-        }
-        setSetsByExercise(grouped);
-        setStep("active");
-      } catch {
-        setStep("error");
-      }
-    },
-    [assignment, day],
-  );
-
   // Step 3: once a day is chosen, load its sessions. Auto-advance if there's
   // only one (mirrors the plan auto-pick rule).
   useEffect(() => {
@@ -212,7 +258,7 @@ export default function ActiveWorkoutPage() {
       .then((s) => {
         setSessions(s);
         if (s.length === 1) {
-          startSession(s[0]);
+          startSession(assignment, day, s[0]);
         } else if (s.length === 0) {
           setStep("error");
         }
@@ -221,12 +267,20 @@ export default function ActiveWorkoutPage() {
       .finally(() => setSessionsLoading(false));
   }, [step, assignment, day, startSession]);
 
-  // Elapsed timer while a workout is active.
+  // Elapsed timer while a workout is active — computed from the session's
+  // real `started_at` rather than counting up from 0, so a resumed workout
+  // (reload, or coming back from another screen) shows correct elapsed time
+  // immediately instead of restarting.
   useEffect(() => {
-    if (step !== "active") return;
-    const id = setInterval(() => setElapsed((e) => e + 1), 1000);
+    if (step !== "active" || !workoutSession) return;
+    const startedAtMs = new Date(workoutSession.started_at).getTime();
+    function tick() {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
+    }
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [step]);
+  }, [step, workoutSession]);
 
   const totalSetsLogged = Object.values(setsByExercise).reduce(
     (total, sets) => total + sets.length,
@@ -340,7 +394,7 @@ export default function ActiveWorkoutPage() {
         title="Which session?"
         items={sessions}
         render={(s) => ({ title: s.name })}
-        onPick={startSession}
+        onPick={(s) => assignment && day && startSession(assignment, day, s)}
       />
     );
   }

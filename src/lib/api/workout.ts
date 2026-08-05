@@ -150,6 +150,21 @@ export async function finishWorkoutSession(sessionId: string): Promise<WorkoutSe
   return apiClient.post<WorkoutSession>(`/user/workout/sessions/${sessionId}/finish`);
 }
 
+export interface OngoingWorkoutSession {
+  session_id: string;
+  started_at: string;
+  assignment_id: string;
+  program_day_id: string | null;
+  program_day_session_id: string | null;
+  program_name: string;
+  day_name: string | null;
+  session_name: string | null;
+}
+
+export async function fetchOngoingWorkoutSession(): Promise<OngoingWorkoutSession | null> {
+  return apiClient.get<OngoingWorkoutSession | null>("/user/workout/sessions/ongoing");
+}
+
 // ---------------------------------------------------------------------------
 // Set logging
 // ---------------------------------------------------------------------------
