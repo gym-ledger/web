@@ -66,85 +66,9 @@ export type ExerciseCategory =
   | "cardio"
   | "plyometric";
 
-// Workout types
-export interface WorkoutProgram {
-  id: string;
-  name: string;
-  shortName: string;
-  description: string;
-  daysPerWeek: number;
-  currentWeek: number;
-  totalWeeks: number;
-  currentPhase: string;
-  days: WorkoutDay[];
-}
-
-export interface WorkoutDay {
-  id: string;
-  name: string;
-  day_number: number;
-  exercises: WorkoutExercise[];
-}
-
-export interface WorkoutExercise {
-  id: string;
-  exercise: Exercise;
-  sets: number;
-  targetReps: string;
-  targetRIR: number;
-  restSeconds: number;
-  notes?: string;
-}
-
-// Active workout types
-export interface ActiveSet {
-  id: string;
-  setNumber: number;
-  weight: number;
-  reps: number;
-  rir: number;
-  completed: boolean;
-  previousWeight?: number;
-  previousReps?: number;
-}
-
-export interface ActiveExercise {
-  id: string;
-  exercise: Exercise;
-  sets: ActiveSet[];
-  notes?: string;
-}
-
-export interface ActiveWorkout {
-  id: string;
-  name: string;
-  programName: string;
-  startTime: Date;
-  exercises: ActiveExercise[];
-}
-
-// History types
-export interface WorkoutSession {
-  id: string;
-  date: string;
-  programName: string;
-  dayName: string;
-  duration: number;
-  totalVolume: number;
-  exercises: SessionExercise[];
-}
-
-export interface SessionExercise {
-  exerciseId: string;
-  exerciseName: string;
-  sets: SessionSet[];
-}
-
-export interface SessionSet {
-  weight: number;
-  reps: number;
-  rir: number;
-}
+// Note: real workout-plan/session/set types now live in `lib/api/workout.ts`
+// (mirroring how `lib/api/weight.ts` owns the weight-tracking types), since
+// that data comes from a real backend rather than being app-wide mock state.
 
 // Progress types
 export interface PR {
@@ -163,15 +87,6 @@ export interface VolumeDataPoint {
 export interface StrengthDataPoint {
   date: string;
   weight: number;
-}
-
-export interface ExerciseHistory {
-  exerciseId: string;
-  sessions: {
-    date: string;
-    sets: SessionSet[];
-    maxWeight: number;
-  }[];
 }
 
 // Notification types

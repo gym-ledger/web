@@ -1,197 +1,336 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, MoreHorizontal, Plus } from "lucide-react";
-import { ExerciseCard } from "@/components/workout/exercise-card";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { ExerciseLogCard } from "@/components/workout/exercise-log-card";
 import { RestTimer } from "@/components/workout/rest-timer";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import type { ActiveExercise, ActiveSet } from "@/types";
-import { exercises } from "@/lib/data/exercises";
+import {
+  fetchActiveWorkoutPlans,
+  fetchProgramDays,
+  fetchProgramDaySessions,
+  fetchSessionExercises,
+  fetchSessionSets,
+  startWorkoutSession,
+  finishWorkoutSession,
+  type WorkoutPlanAssignment,
+  type ProgramDay,
+  type ProgramDaySession,
+  type PlanExercise,
+  type WorkoutSession,
+  type WorkoutSet,
+} from "@/lib/api/workout";
 
-// Build the initial workout state
-const getExercise = (id: string) => exercises.find((e) => e.id === id)!;
-
-function makeSet(
-  setNumber: number,
-  prevWeight?: number,
-  prevReps?: number
-): ActiveSet {
-  return {
-    id: `set-${Math.random().toString(36).slice(2)}`,
-    setNumber,
-    weight: prevWeight ?? 0,
-    reps: prevReps ?? 0,
-    rir: 2,
-    completed: false,
-    previousWeight: prevWeight,
-    previousReps: prevReps,
-  };
-}
-
-const initialExercises: ActiveExercise[] = [
-  {
-    id: "ex-bench",
-    exercise: getExercise("bench-press"),
-    sets: [
-      makeSet(1, 80, 10),
-      makeSet(2, 80, 10),
-      makeSet(3, 80, 8),
-      makeSet(4, 77.5, 9),
-    ],
-  },
-  {
-    id: "ex-ohp",
-    exercise: getExercise("overhead-press"),
-    sets: [
-      makeSet(1, 60, 9),
-      makeSet(2, 60, 8),
-      makeSet(3, 57.5, 9),
-    ],
-  },
-  {
-    id: "ex-incline",
-    exercise: getExercise("incline-db-press"),
-    sets: [
-      makeSet(1, 32, 12),
-      makeSet(2, 32, 11),
-      makeSet(3, 30, 12),
-    ],
-  },
-  {
-    id: "ex-lateral",
-    exercise: getExercise("lateral-raise"),
-    sets: [
-      makeSet(1, 12, 18),
-      makeSet(2, 12, 16),
-      makeSet(3, 12, 15),
-      makeSet(4, 10, 18),
-    ],
-  },
-  {
-    id: "ex-tricep",
-    exercise: getExercise("tricep-pushdown"),
-    sets: [
-      makeSet(1, 25, 15),
-      makeSet(2, 25, 13),
-      makeSet(3, 22.5, 15),
-    ],
-  },
-];
+type Step =
+  | "loading"
+  | "no-plans"
+  | "pick-assignment"
+  | "pick-day"
+  | "pick-session"
+  | "starting"
+  | "active"
+  | "error";
 
 function formatDuration(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  if (h > 0) {
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  }
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function PickerList<T>({
+  title,
+  items,
+  render,
+  onPick,
+}: {
+  title: string;
+  items: T[];
+  render: (item: T) => { title: string; subtitle?: string };
+  onPick: (item: T) => void;
+}) {
+  return (
+    <div className="flex flex-col px-4 pt-6">
+      <h1 className="text-xl font-bold text-foreground mb-4">{title}</h1>
+      <div className="flex flex-col gap-2.5">
+        {items.map((item, i) => {
+          const { title: itemTitle, subtitle } = render(item);
+          return (
+            <motion.button
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              onClick={() => onPick(item)}
+              className="flex items-center justify-between rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10 hover:bg-secondary/50 transition-colors"
+            >
+              <div>
+                <p className="text-sm font-semibold text-foreground">{itemTitle}</p>
+                {subtitle && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+                )}
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CenteredMessage({
+  title,
+  body,
+  ctaLabel,
+  ctaHref,
+}: {
+  title: string;
+  body: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}) {
+  const router = useRouter();
+  return (
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
+      <h2 className="text-lg font-bold text-foreground">{title}</h2>
+      <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+      {ctaLabel && ctaHref && (
+        <Button className="mt-5 rounded-xl" onClick={() => router.push(ctaHref)}>
+          {ctaLabel}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 export default function ActiveWorkoutPage() {
   const router = useRouter();
-  const [activeExercises, setActiveExercises] = useState<ActiveExercise[]>(initialExercises);
+  const [step, setStep] = useState<Step>("loading");
+
+  const [activeAssignments, setActiveAssignments] = useState<WorkoutPlanAssignment[]>([]);
+  const [assignment, setAssignment] = useState<WorkoutPlanAssignment | null>(null);
+  const [days, setDays] = useState<ProgramDay[]>([]);
+  const [day, setDay] = useState<ProgramDay | null>(null);
+  const [sessions, setSessions] = useState<ProgramDaySession[]>([]);
+
+  const [workoutSession, setWorkoutSession] = useState<WorkoutSession | null>(null);
+  const [exercises, setExercises] = useState<PlanExercise[]>([]);
+  const [setsByExercise, setSetsByExercise] = useState<Record<string, WorkoutSet[]>>({});
+  // Only one exercise card expanded at a time; expanding one collapses whichever was open.
+  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
+
   const [elapsed, setElapsed] = useState(0);
   const [restVisible, setRestVisible] = useState(false);
-  const [restDuration, setRestDuration] = useState(120);
+  const [restDuration, setRestDuration] = useState(90);
+  // Bumped on every logged set so RestTimer always remounts (fresh countdown)
+  // instead of reusing an already-running instance stuck on its old value.
+  const [restKey, setRestKey] = useState(0);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
-  // Timer
+  // Step 1: resolve which plan we're training under.
   useEffect(() => {
+    fetchActiveWorkoutPlans()
+      .then((plans) => {
+        setActiveAssignments(plans);
+        if (plans.length === 0) {
+          setStep("no-plans");
+        } else if (plans.length === 1) {
+          setAssignment(plans[0]);
+          setStep("pick-day");
+        } else {
+          setStep("pick-assignment");
+        }
+      })
+      .catch(() => setStep("error"));
+  }, []);
+
+  // Step 2: once a plan is chosen, load its days.
+  useEffect(() => {
+    if (step !== "pick-day" || !assignment) return;
+    fetchProgramDays(assignment.id)
+      .then(setDays)
+      .catch(() => setStep("error"));
+  }, [step, assignment]);
+
+  function handlePickAssignment(a: WorkoutPlanAssignment) {
+    setAssignment(a);
+    setStep("pick-day");
+  }
+
+  function handlePickDay(d: ProgramDay) {
+    setDay(d);
+    setStep("pick-session");
+  }
+
+  const startSession = useCallback(
+    async (session: ProgramDaySession) => {
+      if (!assignment || !day) return;
+      setStep("starting");
+      try {
+        const [ws, ex] = await Promise.all([
+          startWorkoutSession({
+            assignmentId: assignment.id,
+            programDayId: day.id,
+            programDaySessionId: session.id,
+          }),
+          fetchSessionExercises(assignment.id, day.id, session.id),
+        ]);
+        setWorkoutSession(ws);
+        setExercises(ex);
+
+        const existingSets = await fetchSessionSets(ws.id);
+        const grouped: Record<string, WorkoutSet[]> = {};
+        for (const s of existingSets) {
+          (grouped[s.workout_program_exercise_id] ??= []).push(s);
+        }
+        setSetsByExercise(grouped);
+        setStep("active");
+      } catch {
+        setStep("error");
+      }
+    },
+    [assignment, day],
+  );
+
+  // Step 3: once a day is chosen, load its sessions. Auto-advance if there's
+  // only one (mirrors the plan auto-pick rule).
+  useEffect(() => {
+    if (step !== "pick-session" || !assignment || !day) return;
+    fetchProgramDaySessions(assignment.id, day.id)
+      .then((s) => {
+        setSessions(s);
+        if (s.length === 1) {
+          startSession(s[0]);
+        } else if (s.length === 0) {
+          setStep("error");
+        }
+      })
+      .catch(() => setStep("error"));
+  }, [step, assignment, day, startSession]);
+
+  // Elapsed timer while a workout is active.
+  useEffect(() => {
+    if (step !== "active") return;
     const id = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [step]);
 
-  const totalVolume = activeExercises.reduce((total, ex) => {
-    return total + ex.sets
-      .filter((s) => s.completed)
-      .reduce((sum, s) => sum + s.weight * s.reps, 0);
-  }, 0);
-
-  const completedSetsCount = activeExercises.reduce(
-    (total, ex) => total + ex.sets.filter((s) => s.completed).length,
-    0
+  const totalSetsLogged = Object.values(setsByExercise).reduce(
+    (total, sets) => total + sets.length,
+    0,
   );
 
-  const handleSetUpdate = useCallback(
-    (exerciseId: string, setId: string, updates: Partial<ActiveSet>) => {
-      setActiveExercises((prev) =>
-        prev.map((ex) =>
-          ex.id === exerciseId
-            ? {
-                ...ex,
-                sets: ex.sets.map((s) =>
-                  s.id === setId ? { ...s, ...updates } : s
-                ),
-              }
-            : ex
-        )
-      );
-    },
-    []
-  );
+  function handleToggleExpand(exerciseId: string) {
+    setExpandedExerciseId((prev) => (prev === exerciseId ? null : exerciseId));
+  }
 
-  const handleSetComplete = useCallback(
-    (exerciseId: string, setId: string) => {
-      setActiveExercises((prev) =>
-        prev.map((ex) =>
-          ex.id === exerciseId
-            ? {
-                ...ex,
-                sets: ex.sets.map((s) =>
-                  s.id === setId ? { ...s, completed: true } : s
-                ),
-              }
-            : ex
-        )
-      );
-      // Determine rest duration for this exercise
-      const ex = activeExercises.find((e) => e.id === exerciseId);
-      const restSec = ex?.exercise.category === "compound" ? 180 : 90;
-      setRestDuration(restSec);
-      setRestVisible(true);
-    },
-    [activeExercises]
-  );
+  function handleSetLogged(exerciseId: string, set: WorkoutSet, restSeconds: number) {
+    setSetsByExercise((prev) => ({
+      ...prev,
+      [exerciseId]: [...(prev[exerciseId] ?? []), set],
+    }));
+    setRestDuration(restSeconds);
+    setRestVisible(true);
+    setRestKey((k) => k + 1);
+  }
 
-  const handleAddSet = useCallback((exerciseId: string) => {
-    setActiveExercises((prev) =>
-      prev.map((ex) => {
-        if (ex.id !== exerciseId) return ex;
-        const lastSet = ex.sets[ex.sets.length - 1];
-        const newSet = makeSet(
-          ex.sets.length + 1,
-          lastSet?.weight,
-          lastSet?.reps
-        );
-        return { ...ex, sets: [...ex.sets, newSet] };
-      })
+  async function handleFinish() {
+    if (!workoutSession) return;
+    setFinishing(true);
+    try {
+      await finishWorkoutSession(workoutSession.id);
+      toast.success("Workout finished — nice work!");
+      router.push("/home");
+    } catch {
+      toast.error("Failed to finish workout");
+      setFinishing(false);
+    }
+  }
+
+  if (step === "loading" || step === "starting") {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
     );
-  }, []);
+  }
 
-  const handleFinish = () => {
-    router.push("/home");
-  };
+  if (step === "no-plans") {
+    return (
+      <CenteredMessage
+        title="No workout plan selected"
+        body="Select a workout plan before starting a workout."
+        ctaLabel="Browse plans"
+        ctaHref="/workout"
+      />
+    );
+  }
 
+  if (step === "error") {
+    return (
+      <CenteredMessage
+        title="Something went wrong"
+        body="We couldn't start your workout. Please try again."
+        ctaLabel="Back to workouts"
+        ctaHref="/workout"
+      />
+    );
+  }
+
+  if (step === "pick-assignment") {
+    return (
+      <PickerList
+        title="Which plan are you training?"
+        items={activeAssignments}
+        render={(a) => ({
+          title: a.program_name,
+          subtitle: `${a.split_type} · ${a.training_days} days/week`,
+        })}
+        onPick={handlePickAssignment}
+      />
+    );
+  }
+
+  if (step === "pick-day") {
+    return (
+      <PickerList
+        title="Which day are you doing?"
+        items={days}
+        render={(d) => ({ title: d.name, subtitle: `Day ${d.day_number}` })}
+        onPick={handlePickDay}
+      />
+    );
+  }
+
+  if (step === "pick-session") {
+    return (
+      <PickerList
+        title="Which session?"
+        items={sessions}
+        render={(s) => ({ title: s.name })}
+        onPick={startSession}
+      />
+    );
+  }
+
+  // step === "active"
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      {/* Sticky header */}
       <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-3 px-4 py-3">
-          {/* Workout name */}
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              PPL Program
+            <p className="text-xs text-muted-foreground uppercase tracking-wider truncate">
+              {assignment?.program_name}
             </p>
             <h1 className="text-base font-bold text-foreground leading-tight truncate">
-              Push Day A
+              {day?.name}
             </h1>
           </div>
 
-          {/* Elapsed timer */}
           <div className="flex flex-col items-center">
             <span className="text-xl font-black tabular-nums text-foreground">
               {formatDuration(elapsed)}
@@ -201,7 +340,6 @@ export default function ActiveWorkoutPage() {
             </span>
           </div>
 
-          {/* Finish button */}
           <Button
             variant="destructive"
             size="sm"
@@ -211,77 +349,56 @@ export default function ActiveWorkoutPage() {
             Finish
           </Button>
         </div>
-
-        {/* Progress bar */}
-        <div className="h-0.5 bg-secondary">
-          <motion.div
-            className="h-full bg-primary"
-            animate={{
-              width: `${(completedSetsCount / activeExercises.reduce((t, ex) => t + ex.sets.length, 0)) * 100}%`,
-            }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
       </div>
 
-      {/* Quick stats bar */}
       <div className="flex items-center justify-around border-b border-border bg-card px-4 py-2">
         <div className="flex flex-col items-center">
           <span className="text-sm font-bold tabular-nums text-foreground">
-            {completedSetsCount}
+            {totalSetsLogged}
           </span>
-          <span className="text-[10px] text-muted-foreground">sets done</span>
+          <span className="text-[10px] text-muted-foreground">sets logged</span>
         </div>
         <div className="h-6 w-px bg-border" />
         <div className="flex flex-col items-center">
           <span className="text-sm font-bold tabular-nums text-foreground">
-            {totalVolume > 0 ? `${(totalVolume / 1000).toFixed(1)}t` : "0kg"}
-          </span>
-          <span className="text-[10px] text-muted-foreground">volume</span>
-        </div>
-        <div className="h-6 w-px bg-border" />
-        <div className="flex flex-col items-center">
-          <span className="text-sm font-bold tabular-nums text-foreground">
-            {activeExercises.length}
+            {exercises.length}
           </span>
           <span className="text-[10px] text-muted-foreground">exercises</span>
         </div>
       </div>
 
-      {/* Scrollable exercise list */}
       <div className="flex flex-col gap-3 px-4 py-4 pb-32">
-        {activeExercises.map((ex, i) => (
-          <motion.div
-            key={ex.id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: i * 0.05 }}
-          >
-            <ExerciseCard
-              exercise={ex}
-              onSetUpdate={handleSetUpdate}
-              onSetComplete={handleSetComplete}
-              onAddSet={handleAddSet}
-            />
-          </motion.div>
-        ))}
-
-        {/* Add exercise button */}
-        <button className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-4 text-sm font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
-          <Plus className="size-4" />
-          Add exercise
-        </button>
+        {workoutSession &&
+          exercises.map((ex, i) => (
+            <motion.div
+              key={ex.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: i * 0.05 }}
+            >
+              <ExerciseLogCard
+                exercise={ex}
+                workoutSessionId={workoutSession.id}
+                initialSets={setsByExercise[ex.id] ?? []}
+                isExpanded={expandedExerciseId === ex.id}
+                onToggleExpand={() => handleToggleExpand(ex.id)}
+                onSetLogged={(set, restSeconds) => handleSetLogged(ex.id, set, restSeconds)}
+              />
+            </motion.div>
+          ))}
       </div>
 
-      {/* Rest timer overlay */}
-      <RestTimer
-        isVisible={restVisible}
-        initialSeconds={restDuration}
-        onSkip={() => setRestVisible(false)}
-        onFinish={() => setRestVisible(false)}
-      />
+      <AnimatePresence>
+        {restVisible && (
+          <RestTimer
+            key={restKey}
+            initialSeconds={restDuration}
+            onSkip={() => setRestVisible(false)}
+            onFinish={() => setRestVisible(false)}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Finish confirm modal */}
       <AnimatePresence>
         {showFinishConfirm && (
           <motion.div
@@ -302,43 +419,16 @@ export default function ActiveWorkoutPage() {
               <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
               <h2 className="text-lg font-bold text-foreground">Finish workout?</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                You&apos;ve completed {completedSetsCount} sets and lifted{" "}
-                {totalVolume > 0
-                  ? `${totalVolume.toLocaleString()}kg`
-                  : "0kg"}{" "}
-                total.
+                You&apos;ve logged {totalSetsLogged} set{totalSetsLogged !== 1 ? "s" : ""}{" "}
+                in {formatDuration(elapsed)}.
               </p>
-
-              <div className="mt-2 rounded-xl bg-secondary/50 p-3">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-xl font-black text-foreground tabular-nums">
-                      {formatDuration(elapsed)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Duration</p>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black text-foreground tabular-nums">
-                      {completedSetsCount}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Sets</p>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black text-foreground tabular-nums">
-                      {totalVolume > 0
-                        ? `${(totalVolume / 1000).toFixed(1)}t`
-                        : "0"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Volume</p>
-                  </div>
-                </div>
-              </div>
 
               <div className="mt-5 flex gap-3">
                 <Button
                   variant="outline"
                   className="flex-1 h-12 rounded-xl"
                   onClick={() => setShowFinishConfirm(false)}
+                  disabled={finishing}
                 >
                   Resume
                 </Button>
@@ -346,7 +436,9 @@ export default function ActiveWorkoutPage() {
                   variant="destructive"
                   className="flex-1 h-12 rounded-xl font-semibold"
                   onClick={handleFinish}
+                  disabled={finishing}
                 >
+                  {finishing && <Loader2 className="size-4 animate-spin" />}
                   Finish workout
                 </Button>
               </div>

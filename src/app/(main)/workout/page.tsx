@@ -1,183 +1,292 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Play, Calendar, ChevronRight, Zap, RotateCcw } from "lucide-react";
+import { Play, Loader2, History } from "lucide-react";
+import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
-import { workoutPrograms, recentWorkouts } from "@/lib/data/workouts";
-import { cn } from "@/lib/utils";
+import {
+  fetchMyWorkoutPlans,
+  fetchPublicWorkoutPlans,
+  selectWorkoutPlan,
+  deselectWorkoutPlan,
+  type WorkoutPlanAssignment,
+  type PublicWorkoutPlan,
+} from "@/lib/api/workout";
 
-function ProgramCard({ program }: { program: typeof workoutPrograms[0] }) {
-  const progressPercent = (program.currentWeek / program.totalWeeks) * 100;
-
+function AssignmentCard({
+  assignment,
+  busy,
+  onDeactivate,
+  onReactivate,
+}: {
+  assignment: WorkoutPlanAssignment;
+  busy: boolean;
+  onDeactivate: () => void;
+  onReactivate: () => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden"
     >
-      {/* Top accent */}
-      <div className="h-1 bg-gradient-to-r from-primary to-primary/50" />
-
+      <div className={`h-1 ${assignment.is_active ? "bg-primary" : "bg-border"}`} />
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 rounded-md px-1.5 py-0.5">
-                {program.shortName}
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                {assignment.split_type}
               </span>
-              <span className="text-xs text-muted-foreground">{program.daysPerWeek}× / week</span>
+              <span className="text-xs text-muted-foreground">
+                {assignment.training_days}× / week
+              </span>
             </div>
-            <h3 className="mt-1.5 text-base font-bold text-foreground">{program.name}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-              {program.description}
-            </p>
+            <h3 className="mt-1.5 text-base font-bold text-foreground truncate">
+              {assignment.program_name}
+            </h3>
+            {assignment.version_name && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{assignment.version_name}</p>
+            )}
           </div>
-        </div>
-
-        {/* Week progress */}
-        <div className="mt-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">
-              Week {program.currentWeek} of {program.totalWeeks}
+          {!assignment.is_active && (
+            <span className="shrink-0 rounded-md bg-secondary px-1.5 py-0.5 text-xs text-muted-foreground">
+              Inactive
             </span>
-            <span className="text-xs font-medium text-primary">{program.currentPhase}</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-secondary">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+          )}
         </div>
 
-        <Link href="/workout/active">
-          <Button className="mt-4 w-full h-10 rounded-xl font-semibold gap-2" size="sm">
-            <Play className="size-3.5 fill-current" />
-            Continue Program
-          </Button>
-        </Link>
+        <div className="mt-4 flex gap-2">
+          {assignment.is_active ? (
+            <>
+              <Link href="/workout/active" className="flex-1">
+                <Button className="w-full h-10 rounded-xl font-semibold gap-2" size="sm">
+                  <Play className="size-3.5 fill-current" />
+                  Start Workout
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 rounded-xl"
+                disabled={busy}
+                onClick={onDeactivate}
+              >
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : "Remove"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-10 rounded-xl font-semibold"
+              size="sm"
+              disabled={busy}
+              onClick={onReactivate}
+            >
+              {busy && <Loader2 className="size-3.5 animate-spin" />}
+              Reactivate
+            </Button>
+          )}
+        </div>
       </div>
     </motion.div>
   );
 }
 
-function RecentWorkoutCard({
-  session,
+function PublicPlanCard({
+  plan,
+  selected,
+  busy,
+  onSelect,
 }: {
-  session: typeof recentWorkouts[0];
+  plan: PublicWorkoutPlan;
+  selected: boolean;
+  busy: boolean;
+  onSelect: () => void;
 }) {
-  const date = new Date(session.date);
-  const label = date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10">
-      <div className="flex flex-col items-center justify-center size-12 rounded-xl bg-secondary shrink-0">
-        <span className="text-xs font-medium text-muted-foreground">
-          {date.toLocaleDateString("en-US", { weekday: "short" })}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl bg-card ring-1 ring-foreground/10 p-4"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-primary">
+          {plan.split_type}
         </span>
-        <span className="text-base font-bold text-foreground">
-          {date.getDate()}
+        <span className="text-xs text-muted-foreground">
+          {plan.training_days}× / week · {plan.duration_weeks}wk
         </span>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground leading-tight">
-          {session.dayName}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {session.programName} · {session.duration}min · {(session.totalVolume / 1000).toFixed(1)}t
-        </p>
-      </div>
-      <Link href="/workout/active">
-        <button className="flex size-8 items-center justify-center rounded-xl bg-secondary hover:bg-primary/10 hover:text-primary text-muted-foreground transition-colors">
-          <RotateCcw className="size-3.5" />
-        </button>
-      </Link>
+      <h3 className="mt-1.5 text-base font-bold text-foreground">{plan.name}</h3>
+      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{plan.description}</p>
+
+      <Button
+        className="mt-4 w-full h-10 rounded-xl font-semibold"
+        size="sm"
+        variant={selected ? "outline" : "default"}
+        disabled={busy || selected}
+        onClick={onSelect}
+      >
+        {busy && <Loader2 className="size-3.5 animate-spin" />}
+        {selected ? "Selected" : "Select plan"}
+      </Button>
+    </motion.div>
+  );
+}
+
+function EmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border py-10 text-center">
+      <p className="text-sm text-muted-foreground">{children}</p>
     </div>
   );
 }
 
 export default function WorkoutPage() {
+  const [myPlans, setMyPlans] = useState<WorkoutPlanAssignment[]>([]);
+  const [publicPlans, setPublicPlans] = useState<PublicWorkoutPlan[]>([]);
+  const [loadingMine, setLoadingMine] = useState(true);
+  const [loadingPublic, setLoadingPublic] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  function refreshMine() {
+    setLoadingMine(true);
+    fetchMyWorkoutPlans()
+      .then(setMyPlans)
+      .catch(() => toast.error("Failed to load your plans"))
+      .finally(() => setLoadingMine(false));
+  }
+
+  useEffect(() => {
+    // Both loading flags already start `true`, so the initial fetch just
+    // needs to clear them — `refreshMine()` (used after select/deactivate)
+    // additionally sets loadingMine back to true for a manual re-fetch.
+    fetchMyWorkoutPlans()
+      .then(setMyPlans)
+      .catch(() => toast.error("Failed to load your plans"))
+      .finally(() => setLoadingMine(false));
+    fetchPublicWorkoutPlans()
+      .then(setPublicPlans)
+      .catch(() => toast.error("Failed to load public plans"))
+      .finally(() => setLoadingPublic(false));
+  }, []);
+
+  async function handleSelect(workoutProgramId: string) {
+    setBusyId(workoutProgramId);
+    try {
+      await selectWorkoutPlan(workoutProgramId);
+      toast.success("Plan added to your list");
+      refreshMine();
+    } catch {
+      toast.error("Failed to select plan");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDeactivate(assignmentId: string) {
+    setBusyId(assignmentId);
+    try {
+      await deselectWorkoutPlan(assignmentId);
+      toast.success("Plan removed from your active list");
+      refreshMine();
+    } catch {
+      toast.error("Failed to update plan");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const activeCount = myPlans.filter((p) => p.is_active).length;
+  const selectedProgramIds = new Set(
+    myPlans.filter((p) => p.is_active).map((p) => p.workout_program_id),
+  );
+
   return (
     <div className="flex flex-col px-4 pt-4">
-      <PageHeader title="Workouts" />
+      <PageHeader
+        title="Workouts"
+        action={
+          <Link href="/workout/history">
+            <Button variant="outline" size="sm">
+              <History className="size-3.5" />
+              History
+            </Button>
+          </Link>
+        }
+      />
 
-      <Tabs defaultValue="programs" className="flex-1">
+      <Tabs defaultValue="mine" className="flex-1">
         <TabsList className="w-full mb-5">
-          <TabsTrigger value="programs" className="flex-1">
-            My Programs
+          <TabsTrigger value="mine" className="flex-1">
+            My Plans
           </TabsTrigger>
-          <TabsTrigger value="quick" className="flex-1">
-            Quick Start
+          <TabsTrigger value="browse" className="flex-1">
+            Browse Plans
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="programs">
-          <div className="flex flex-col gap-4">
-            {workoutPrograms.map((program, i) => (
-              <motion.div
-                key={program.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06 }}
-              >
-                <ProgramCard program={program} />
-              </motion.div>
-            ))}
+        <TabsContent value="mine">
+          {activeCount > 0 && (
+            <Link href="/workout/active" className="block mb-4">
+              <Button className="w-full h-11 rounded-xl font-semibold gap-2">
+                <Play className="size-4 fill-current" />
+                Start Workout
+              </Button>
+            </Link>
+          )}
 
-            <button className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-5 text-sm font-medium text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
-              + Browse program templates
-            </button>
-          </div>
+          {loadingMine ? (
+            <div className="flex flex-col gap-3">
+              <div className="h-32 rounded-2xl bg-card ring-1 ring-foreground/10 animate-pulse" />
+              <div className="h-32 rounded-2xl bg-card ring-1 ring-foreground/10 animate-pulse" />
+            </div>
+          ) : myPlans.length === 0 ? (
+            <EmptyState>
+              You haven&apos;t selected any workout plans yet. Browse public plans to
+              get started.
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {myPlans.map((assignment) => (
+                <AssignmentCard
+                  key={assignment.id}
+                  assignment={assignment}
+                  busy={busyId === assignment.id}
+                  onDeactivate={() => handleDeactivate(assignment.id)}
+                  onReactivate={() => handleSelect(assignment.workout_program_id)}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="quick">
-          <div className="flex flex-col gap-4">
-            {/* Empty workout card */}
-            <Link href="/workout/active">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl bg-primary/10 ring-1 ring-primary/30 p-5 flex items-center gap-4"
-              >
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/20">
-                  <Zap className="size-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-foreground">Empty Workout</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Start fresh, add exercises as you go
-                  </p>
-                </div>
-                <ChevronRight className="size-5 text-muted-foreground" />
-              </motion.div>
-            </Link>
-
-            {/* Recent workouts to repeat */}
-            <div>
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Repeat recent
-              </h2>
-              <div className="flex flex-col gap-3">
-                {recentWorkouts.slice(0, 4).map((session, i) => (
-                  <motion.div
-                    key={session.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <RecentWorkoutCard session={session} />
-                  </motion.div>
-                ))}
-              </div>
+        <TabsContent value="browse">
+          {loadingPublic ? (
+            <div className="flex flex-col gap-3">
+              <div className="h-40 rounded-2xl bg-card ring-1 ring-foreground/10 animate-pulse" />
+              <div className="h-40 rounded-2xl bg-card ring-1 ring-foreground/10 animate-pulse" />
             </div>
-          </div>
+          ) : publicPlans.length === 0 ? (
+            <EmptyState>No public workout plans are available right now.</EmptyState>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {publicPlans.map((plan) => (
+                <PublicPlanCard
+                  key={plan.workout_program_id}
+                  plan={plan}
+                  selected={selectedProgramIds.has(plan.workout_program_id)}
+                  busy={busyId === plan.workout_program_id}
+                  onSelect={() => handleSelect(plan.workout_program_id)}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
