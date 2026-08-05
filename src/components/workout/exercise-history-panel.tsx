@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, History, Loader2 } from "lucide-react";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
+import { groupSetsWithDropsets } from "@/lib/workout-sets";
 
 interface ExerciseHistoryPanelProps {
   exerciseId: string;
@@ -95,24 +96,44 @@ export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHi
                   </div>
 
                   <div className="mt-1.5 flex flex-col gap-1.5">
-                    {session.sets.map((s) => (
-                      <div key={s.id} className="flex items-start gap-2 text-xs">
-                        <span className="w-4 shrink-0 text-center font-semibold text-muted-foreground">
-                          {s.set_order}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <span className="tabular-nums text-foreground">
-                            {formatWeightReps(s.weight, s.tool_weight, s.reps)}
-                            {s.rir != null && (
-                              <span className="text-muted-foreground"> · RIR {s.rir}</span>
-                            )}
+                    {groupSetsWithDropsets(session.sets).map(({ main: s, drops }) => (
+                      <div key={s.id} className="flex flex-col gap-1">
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="w-4 shrink-0 text-center font-semibold text-muted-foreground">
+                            {s.set_order}
                           </span>
-                          {(s.effort || s.discomfort_notes) && (
-                            <p className="mt-0.5 text-muted-foreground">
-                              {[s.effort, s.discomfort_notes].filter(Boolean).join(" · ")}
-                            </p>
-                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="tabular-nums text-foreground">
+                              {formatWeightReps(s.weight, s.tool_weight, s.reps)}
+                              {s.rir != null && (
+                                <span className="text-muted-foreground"> · RIR {s.rir}</span>
+                              )}
+                            </span>
+                            {(s.effort || s.discomfort_notes) && (
+                              <p className="mt-0.5 text-muted-foreground">
+                                {[s.effort, s.discomfort_notes].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
+                          </div>
                         </div>
+                        {drops.map((d) => (
+                          <div key={d.id} className="flex items-start gap-2 pl-6 text-[11px]">
+                            <span className="text-muted-foreground">↳{d.drop_order}</span>
+                            <div className="min-w-0 flex-1">
+                              <span className="tabular-nums text-foreground">
+                                {formatWeightReps(d.weight, d.tool_weight, d.reps)}
+                                {d.rir != null && (
+                                  <span className="text-muted-foreground"> · RIR {d.rir}</span>
+                                )}
+                              </span>
+                              {(d.effort || d.discomfort_notes) && (
+                                <p className="mt-0.5 text-muted-foreground">
+                                  {[d.effort, d.discomfort_notes].filter(Boolean).join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>

@@ -167,6 +167,8 @@ export interface WorkoutSet {
   effort: string | null;
   discomfort_notes: string | null;
   created_at: string;
+  parent_set_id: string | null;
+  drop_order: number | null;
 }
 
 export interface WorkoutSetAlarm {
@@ -176,6 +178,15 @@ export interface WorkoutSetAlarm {
   exercise_id: string;
   message: string;
   discarded_at: string | null;
+}
+
+export interface DropSetFields {
+  weight?: number | null;
+  toolWeight?: number | null;
+  reps?: number | null;
+  rir?: number | null;
+  effort?: string | null;
+  discomfortNotes?: string | null;
 }
 
 export interface LogSetPayload {
@@ -188,11 +199,12 @@ export interface LogSetPayload {
   effort?: string | null;
   discomfortNotes?: string | null;
   alarmMessage?: string | null;
+  dropSets?: DropSetFields[];
 }
 
 export async function logWorkoutSet(
   payload: LogSetPayload,
-): Promise<{ set: WorkoutSet; alarm: WorkoutSetAlarm | null }> {
+): Promise<{ set: WorkoutSet; dropSets: WorkoutSet[]; alarm: WorkoutSetAlarm | null }> {
   return apiClient.post("/user/workout/sets", {
     workout_session_id: payload.workoutSessionId,
     workout_program_exercise_id: payload.workoutProgramExerciseId,
@@ -203,6 +215,59 @@ export async function logWorkoutSet(
     effort: payload.effort,
     discomfort_notes: payload.discomfortNotes,
     alarm_message: payload.alarmMessage,
+    drop_sets: payload.dropSets?.map((d) => ({
+      weight: d.weight,
+      tool_weight: d.toolWeight,
+      reps: d.reps,
+      rir: d.rir,
+      effort: d.effort,
+      discomfort_notes: d.discomfortNotes,
+    })),
+  });
+}
+
+export interface BatchSetItem {
+  clientId: string;
+  workoutSessionId: string;
+  workoutProgramExerciseId: string;
+  weight?: number | null;
+  toolWeight?: number | null;
+  reps?: number | null;
+  rir?: number | null;
+  effort?: string | null;
+  discomfortNotes?: string | null;
+  alarmMessage?: string | null;
+  dropSets?: DropSetFields[];
+}
+
+export type BatchSetResult =
+  | { client_id: string; set: WorkoutSet; dropSets: WorkoutSet[]; alarm: WorkoutSetAlarm | null }
+  | { client_id: string; error: string };
+
+export async function logWorkoutSetsBatch(
+  items: BatchSetItem[],
+): Promise<{ results: BatchSetResult[] }> {
+  return apiClient.post("/user/workout/sets/batch", {
+    sets: items.map((item) => ({
+      client_id: item.clientId,
+      workout_session_id: item.workoutSessionId,
+      workout_program_exercise_id: item.workoutProgramExerciseId,
+      weight: item.weight,
+      tool_weight: item.toolWeight,
+      reps: item.reps,
+      rir: item.rir,
+      effort: item.effort,
+      discomfort_notes: item.discomfortNotes,
+      alarm_message: item.alarmMessage,
+      drop_sets: item.dropSets?.map((d) => ({
+        weight: d.weight,
+        tool_weight: d.toolWeight,
+        reps: d.reps,
+        rir: d.rir,
+        effort: d.effort,
+        discomfort_notes: d.discomfortNotes,
+      })),
+    })),
   });
 }
 
@@ -220,6 +285,8 @@ export interface ExerciseHistorySet {
   effort: string | null;
   discomfort_notes: string | null;
   alarm_message: string | null;
+  parent_set_id: string | null;
+  drop_order: number | null;
 }
 
 export interface ExerciseHistorySession {
@@ -289,6 +356,8 @@ export interface WorkoutSessionDetailSet {
   effort: string | null;
   discomfort_notes: string | null;
   created_at: string;
+  parent_set_id: string | null;
+  drop_order: number | null;
 }
 
 export interface WorkoutSessionDetailExercise {

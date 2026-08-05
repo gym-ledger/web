@@ -61,7 +61,10 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
       transition={{ type: "spring", damping: 28, stiffness: 300 }}
       className="fixed bottom-24 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-4"
     >
-      <div className="flex items-center justify-between rounded-2xl bg-card px-4 py-3.5 ring-1 ring-foreground/10 shadow-2xl">
+      <div
+        className="flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-2xl ring-1 ring-white/10"
+        style={{ backgroundColor: "oklch(0.28 0.10 258)" }}
+      >
         {/* Left: label + timer */}
         <div className="flex items-center gap-3">
           {/* Circular progress */}
@@ -72,7 +75,7 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
                 cy="24"
                 r="20"
                 fill="none"
-                stroke="oklch(1 0 0 / 7%)"
+                stroke="oklch(1 0 0 / 15%)"
                 strokeWidth="3"
               />
               <circle
@@ -80,7 +83,7 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
                 cy="24"
                 r="20"
                 fill="none"
-                stroke="oklch(0.62 0.22 258)"
+                stroke="oklch(0.97 0 0)"
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
@@ -88,14 +91,14 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
                 className="transition-all duration-1000"
               />
             </svg>
-            <span className="absolute text-xs font-bold text-foreground tabular-nums">
+            <span className="absolute text-xs font-bold text-white tabular-nums">
               {formatTime(remaining)}
             </span>
           </div>
 
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Rest</p>
-            <p className="text-base font-bold text-foreground tabular-nums">
+            <p className="text-xs text-white/70 uppercase tracking-wider">Rest</p>
+            <p className="text-base font-bold text-white tabular-nums">
               {formatTime(remaining)}
             </p>
           </div>
@@ -105,14 +108,14 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
         <div className="flex items-center gap-2">
           <button
             onClick={onSkip}
-            className="flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary/80 transition-colors"
+            className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
           >
             <ChevronDown className="size-4" />
             Skip rest
           </button>
           <button
             onClick={onSkip}
-            className="flex size-8 items-center justify-center rounded-xl hover:bg-secondary text-muted-foreground transition-colors"
+            className="flex size-8 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 transition-colors"
           >
             <X className="size-4" />
           </button>

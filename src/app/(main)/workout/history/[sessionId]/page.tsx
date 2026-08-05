@@ -9,6 +9,7 @@ import {
   fetchWorkoutSessionDetail,
   type WorkoutSessionDetail,
 } from "@/lib/api/workout";
+import { groupSetsWithDropsets } from "@/lib/workout-sets";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -115,7 +116,7 @@ function DetailContent({ sessionId }: { sessionId: string }) {
               <h3 className="text-base font-bold text-foreground">{ex.exercise_name}</h3>
 
               <div className="mt-2 flex flex-col gap-1.5">
-                {ex.sets.map((s) => (
+                {groupSetsWithDropsets(ex.sets).map(({ main: s, drops }) => (
                   <div key={s.id} className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-2 text-sm">
                       <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
@@ -136,6 +137,27 @@ function DetailContent({ sessionId }: { sessionId: string }) {
                         {[s.effort, s.discomfort_notes].filter(Boolean).join(" · ")}
                       </p>
                     )}
+                    {drops.map((d) => (
+                      <div key={d.id} className="flex flex-col gap-0.5 pl-7">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
+                          <span className="tabular-nums text-foreground">
+                            {formatLoad(d.weight, d.tool_weight)} × {d.reps ?? "—"}
+                            {d.rir != null && (
+                              <span className="text-muted-foreground"> · RIR {d.rir}</span>
+                            )}
+                          </span>
+                          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+                            {formatTimeOfDay(d.created_at)}
+                          </span>
+                        </div>
+                        {(d.effort || d.discomfort_notes) && (
+                          <p className="pl-6 text-[11px] text-muted-foreground">
+                            {[d.effort, d.discomfort_notes].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>

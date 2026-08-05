@@ -3,11 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, CloudOff, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { ExerciseLogCard } from "@/components/workout/exercise-log-card";
 import { RestTimer } from "@/components/workout/rest-timer";
 import { Button } from "@/components/ui/button";
+import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
+import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
 import {
   fetchActiveWorkoutPlans,
   fetchProgramDays,
@@ -113,10 +115,15 @@ export default function ActiveWorkoutPage() {
   const [activeAssignments, setActiveAssignments] = useState<WorkoutPlanAssignment[]>([]);
   const [assignment, setAssignment] = useState<WorkoutPlanAssignment | null>(null);
   const [days, setDays] = useState<ProgramDay[]>([]);
+  const [daysLoading, setDaysLoading] = useState(true);
   const [day, setDay] = useState<ProgramDay | null>(null);
   const [sessions, setSessions] = useState<ProgramDaySession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
 
   const [workoutSession, setWorkoutSession] = useState<WorkoutSession | null>(null);
+  const pendingSyncCount = useWorkoutSetQueueStore((s) =>
+    workoutSession ? s.pendingCountForSession(workoutSession.id) : 0,
+  );
   const [exercises, setExercises] = useState<PlanExercise[]>([]);
   const [setsByExercise, setSetsByExercise] = useState<Record<string, WorkoutSet[]>>({});
   // Only one exercise card expanded at a time; expanding one collapses whichever was open.
@@ -153,7 +160,8 @@ export default function ActiveWorkoutPage() {
     if (step !== "pick-day" || !assignment) return;
     fetchProgramDays(assignment.id)
       .then(setDays)
-      .catch(() => setStep("error"));
+      .catch(() => setStep("error"))
+      .finally(() => setDaysLoading(false));
   }, [step, assignment]);
 
   function handlePickAssignment(a: WorkoutPlanAssignment) {
@@ -209,7 +217,8 @@ export default function ActiveWorkoutPage() {
           setStep("error");
         }
       })
-      .catch(() => setStep("error"));
+      .catch(() => setStep("error"))
+      .finally(() => setSessionsLoading(false));
   }, [step, assignment, day, startSession]);
 
   // Elapsed timer while a workout is active.
@@ -228,10 +237,15 @@ export default function ActiveWorkoutPage() {
     setExpandedExerciseId((prev) => (prev === exerciseId ? null : exerciseId));
   }
 
-  function handleSetLogged(exerciseId: string, set: WorkoutSet, restSeconds: number) {
+  function handleSetLogged(
+    exerciseId: string,
+    set: WorkoutSet,
+    dropSets: WorkoutSet[],
+    restSeconds: number,
+  ) {
     setSetsByExercise((prev) => ({
       ...prev,
-      [exerciseId]: [...(prev[exerciseId] ?? []), set],
+      [exerciseId]: [...(prev[exerciseId] ?? []), set, ...dropSets],
     }));
     setRestDuration(restSeconds);
     setRestVisible(true);
@@ -296,6 +310,13 @@ export default function ActiveWorkoutPage() {
   }
 
   if (step === "pick-day") {
+    if (daysLoading) {
+      return (
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <PickerList
         title="Which day are you doing?"
@@ -307,6 +328,13 @@ export default function ActiveWorkoutPage() {
   }
 
   if (step === "pick-session") {
+    if (sessionsLoading) {
+      return (
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <PickerList
         title="Which session?"
@@ -351,6 +379,23 @@ export default function ActiveWorkoutPage() {
         </div>
       </div>
 
+      {pendingSyncCount > 0 && (
+        <div className="flex items-center justify-between gap-2 border-b border-border bg-amber-500/10 px-4 py-1.5 text-xs text-amber-600">
+          <span className="flex items-center gap-1.5">
+            <CloudOff className="size-3.5" />
+            {pendingSyncCount} set{pendingSyncCount !== 1 ? "s" : ""} not yet synced
+          </span>
+          <button
+            type="button"
+            onClick={() => flushWorkoutSetQueue()}
+            className="flex items-center gap-1 font-semibold hover:underline"
+          >
+            <RefreshCw className="size-3" />
+            Sync now
+          </button>
+        </div>
+      )}
+
       <div className="flex items-center justify-around border-b border-border bg-card px-4 py-2">
         <div className="flex flex-col items-center">
           <span className="text-sm font-bold tabular-nums text-foreground">
@@ -382,7 +427,9 @@ export default function ActiveWorkoutPage() {
                 initialSets={setsByExercise[ex.id] ?? []}
                 isExpanded={expandedExerciseId === ex.id}
                 onToggleExpand={() => handleToggleExpand(ex.id)}
-                onSetLogged={(set, restSeconds) => handleSetLogged(ex.id, set, restSeconds)}
+                onSetLogged={(set, dropSets, restSeconds) =>
+                  handleSetLogged(ex.id, set, dropSets, restSeconds)
+                }
               />
             </motion.div>
           ))}

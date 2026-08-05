@@ -334,6 +334,15 @@ export default function LoginPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.22 }}
+              onAnimationComplete={() => {
+                // mode="wait" on the outer AnimatePresence delays mounting
+                // this div until the input step's exit finishes, so a fixed
+                // setTimeout after setStep("otp") can fire before the input
+                // exists. Focusing on this step's own enter-complete instead
+                // guarantees the node is mounted. (Also fires on this div's
+                // exit; the step guard makes that a no-op.)
+                if (step === "otp") otpRefs.current[0]?.focus();
+              }}
             >
               <form onSubmit={handleVerifyOtp} className="flex flex-col gap-5">
                 {/* 4-digit OTP inputs */}
@@ -352,7 +361,7 @@ export default function LoginPage() {
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
                       onPaste={i === 0 ? handleOtpPaste : undefined}
                       className={cn(
-                        "size-14 rounded-xl border border-input bg-card text-center text-2xl font-bold text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-ring",
+                        "size-14 rounded-xl border-2 border-input bg-input/20 text-center text-2xl font-bold text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-ring",
                         digit && "border-primary/60 ring-1 ring-primary/20",
                       )}
                     />
