@@ -520,7 +520,10 @@ export function ExerciseLogCard({
                     {isEditingMain ? (
                       renderSetEditForm()
                     ) : (
-                      <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-sm">
+                      <div
+                        onClick={handleToggle}
+                        className="-mx-1 flex cursor-pointer items-center gap-2 rounded-lg px-1 text-sm"
+                      >
                         <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
                           {s.set_order}
                         </span>
@@ -540,7 +543,10 @@ export function ExerciseLogCard({
                           {!mainPending && (
                             <button
                               type="button"
-                              onClick={() => startEditSet(s)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditSet(s);
+                              }}
                               aria-label="Edit set"
                               className="-m-1.5 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
                             >
@@ -563,7 +569,10 @@ export function ExerciseLogCard({
                           {isEditingDrop ? (
                             renderSetEditForm()
                           ) : (
-                            <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-xs">
+                            <div
+                              onClick={handleToggle}
+                              className="-mx-1 flex cursor-pointer items-center gap-2 rounded-lg px-1 text-xs"
+                            >
                               <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
                               <span className="tabular-nums text-foreground">
                                 {formatLoad(d.weight, d.tool_weight)} × {d.reps ?? "—"}
@@ -579,7 +588,10 @@ export function ExerciseLogCard({
                                 {!dropPending && (
                                   <button
                                     type="button"
-                                    onClick={() => startEditSet(d)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      startEditSet(d);
+                                    }}
                                     aria-label="Edit drop set"
                                     className="-m-1.5 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
                                   >
