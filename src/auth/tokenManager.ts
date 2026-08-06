@@ -2,6 +2,7 @@ import { useAuthStore } from "./authStore";
 import {
   ACCESS_TOKEN_EXPIRY_BUFFER_MS,
   REFRESH_ENDPOINT,
+  LOGOUT_ENDPOINT,
   API_BASE,
   BROADCAST_CHANNEL_NAME,
   normalizeExpiresAt,
@@ -133,7 +134,19 @@ async function doRefresh(): Promise<string> {
 }
 
 export function performLogout(): void {
+  const { refreshToken } = useAuthStore.getState();
+
   activeRefreshPromise = null;
   useAuthStore.getState().clearAuth();
   broadcastChannel?.postMessage({ type: "LOGGED_OUT" } satisfies AuthBroadcastEvent);
+
+  // Best-effort — the local session is already cleared above regardless of
+  // whether this call succeeds, so failures (offline, already-invalid token,
+  // etc.) are deliberately swallowed rather than surfaced to the caller.
+  if (refreshToken) {
+    fetch(`${API_BASE}${LOGOUT_ENDPOINT}`, {
+      method: "DELETE",
+      headers: { "refresh-token": refreshToken },
+    }).catch(() => {});
+  }
 }

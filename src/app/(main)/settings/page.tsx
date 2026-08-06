@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, ChevronRight, Moon } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { performLogout } from "@/auth/tokenManager";
 
 function SettingRow({
   label,
@@ -219,7 +220,10 @@ export default function SettingsPage() {
           <SettingRow
             label="Log out"
             danger
-            onClick={() => router.push("/login")}
+            onClick={() => {
+              performLogout();
+              router.push("/login");
+            }}
           />
           <SettingRow
             label="Delete account"
