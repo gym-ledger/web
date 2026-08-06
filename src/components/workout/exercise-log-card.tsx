@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil, Flame } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchExerciseHistory,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/workout";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { cn } from "@/lib/utils";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
 import { useWorkoutSetUpdateQueueStore } from "@/lib/offline/workoutSetUpdateQueue";
@@ -95,6 +96,7 @@ export function ExerciseLogCard({
   const [effort, setEffort] = useState("");
   const [discomfort, setDiscomfort] = useState("");
   const [alarm, setAlarm] = useState("");
+  const [isWarmup, setIsWarmup] = useState(false);
   const [dropSets, setDropSets] = useState<DropSetRow[]>([]);
   // Sets logged optimistically (offline-first) that haven't been confirmed by
   // the server yet — keyed by their local clientId (used as the set's `id`
@@ -110,6 +112,7 @@ export function ExerciseLogCard({
   const [editRir, setEditRir] = useState("");
   const [editEffort, setEditEffort] = useState("");
   const [editDiscomfort, setEditDiscomfort] = useState("");
+  const [editIsWarmup, setEditIsWarmup] = useState(false);
   // Edits not yet confirmed by the server (still queued/offline) — reactive,
   // so rows update the moment the sync manager flushes them.
   const pendingSetUpdates = useWorkoutSetUpdateQueueStore((state) => state.queue);
@@ -278,7 +281,7 @@ export function ExerciseLogCard({
   }
 
   const hasInput = !!(
-    weight || toolWeight || reps || rir || effort || discomfort || alarm || dropSets.length > 0
+    weight || toolWeight || reps || rir || effort || discomfort || alarm || isWarmup || dropSets.length > 0
   );
 
   function handleClear() {
@@ -289,6 +292,7 @@ export function ExerciseLogCard({
     setEffort("");
     setDiscomfort("");
     setAlarm("");
+    setIsWarmup(false);
     setDropSets([]);
   }
 
@@ -315,6 +319,7 @@ export function ExerciseLogCard({
     setEditRir(set.rir != null ? String(set.rir) : "");
     setEditEffort(set.effort ?? "");
     setEditDiscomfort(set.discomfort_notes ?? "");
+    setEditIsWarmup(set.is_warmup);
   }
 
   function cancelEditSet() {
@@ -336,6 +341,7 @@ export function ExerciseLogCard({
       rir: editRir.trim() ? parseFloat(editRir) : null,
       effort: editEffort.trim() || null,
       discomfortNotes: editDiscomfort.trim() || null,
+      isWarmup: editIsWarmup,
     };
     const setId = editingSetId;
 
@@ -355,6 +361,7 @@ export function ExerciseLogCard({
               rir: payload.rir ?? null,
               effort: payload.effort ?? null,
               discomfort_notes: payload.discomfortNotes ?? null,
+              is_warmup: payload.isWarmup ?? false,
             }
           : s,
       ),
@@ -412,7 +419,7 @@ export function ExerciseLogCard({
       tool_weight: trimmedToolWeight,
       reps: parsedReps,
       rir: trimmedRir,
-      is_warmup: false,
+      is_warmup: isWarmup,
       effort: trimmedEffort,
       discomfort_notes: trimmedDiscomfort,
       created_at: nowIso,
@@ -445,6 +452,7 @@ export function ExerciseLogCard({
     setEffort("");
     setDiscomfort("");
     setAlarm("");
+    setIsWarmup(false);
     setDropSets([]);
 
     useWorkoutSetQueueStore.getState().enqueue({
@@ -458,6 +466,7 @@ export function ExerciseLogCard({
         rir: trimmedRir,
         effort: trimmedEffort,
         discomfortNotes: trimmedDiscomfort,
+        isWarmup,
         alarmMessage: trimmedAlarm,
         dropSets: parsedDropSets,
       },
@@ -526,6 +535,20 @@ export function ExerciseLogCard({
           onChange={(e) => setEditDiscomfort(e.target.value)}
           className="h-8 rounded-lg border border-input bg-input/25 px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40"
         />
+        <button
+          type="button"
+          onClick={() => setEditIsWarmup((v) => !v)}
+          aria-pressed={editIsWarmup}
+          className={cn(
+            "flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-medium transition-colors",
+            editIsWarmup
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+              : "border-input bg-input/25 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Flame className="size-3" />
+          Warmup set
+        </button>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -582,6 +605,12 @@ export function ExerciseLogCard({
                             <span className="text-muted-foreground"> · RIR {s.rir}</span>
                           )}
                         </span>
+                        {s.is_warmup && (
+                          <span className="flex shrink-0 items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-500 bg-amber-500/15">
+                            <Flame className="size-2.5" />
+                            Warmup
+                          </span>
+                        )}
                         <span className="ml-auto flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
                           {mainNotSynced && (
                             <CloudOff className="size-3" aria-label="Not yet synced" />
@@ -778,6 +807,20 @@ export function ExerciseLogCard({
                 />
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsWarmup((v) => !v)}
+              aria-pressed={isWarmup}
+              className={cn(
+                "flex h-9 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition-colors",
+                isWarmup
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+                  : "border-input bg-input/25 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Flame className="size-3.5" />
+              Warmup set
+            </button>
             <input
               type="text"
               placeholder="Effort (e.g. felt heavy, easy...)"

@@ -13,6 +13,7 @@ export interface QueuedSetPayload {
   rir?: number | null;
   effort?: string | null;
   discomfortNotes?: string | null;
+  isWarmup?: boolean;
   alarmMessage?: string | null;
   dropSets?: DropSetFields[];
 }

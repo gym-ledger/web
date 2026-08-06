@@ -33,6 +33,7 @@ export async function flushWorkoutSetQueue(): Promise<void> {
       rir: q.payload.rir,
       effort: q.payload.effort,
       discomfortNotes: q.payload.discomfortNotes,
+      isWarmup: q.payload.isWarmup,
       alarmMessage: q.payload.alarmMessage,
       dropSets: q.payload.dropSets,
     }));

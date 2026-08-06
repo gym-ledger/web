@@ -213,6 +213,7 @@ export interface LogSetPayload {
   rir?: number | null;
   effort?: string | null;
   discomfortNotes?: string | null;
+  isWarmup?: boolean;
   alarmMessage?: string | null;
   dropSets?: DropSetFields[];
 }
@@ -229,6 +230,7 @@ export async function logWorkoutSet(
     rir: payload.rir,
     effort: payload.effort,
     discomfort_notes: payload.discomfortNotes,
+    is_warmup: payload.isWarmup,
     alarm_message: payload.alarmMessage,
     drop_sets: payload.dropSets?.map((d) => ({
       weight: d.weight,
@@ -248,6 +250,7 @@ export interface UpdateSetPayload {
   rir?: number | null;
   effort?: string | null;
   discomfortNotes?: string | null;
+  isWarmup?: boolean;
 }
 
 export async function updateWorkoutSet(
@@ -261,6 +264,7 @@ export async function updateWorkoutSet(
     rir: payload.rir,
     effort: payload.effort,
     discomfort_notes: payload.discomfortNotes,
+    is_warmup: payload.isWarmup,
   });
 }
 
@@ -274,6 +278,7 @@ export interface BatchSetItem {
   rir?: number | null;
   effort?: string | null;
   discomfortNotes?: string | null;
+  isWarmup?: boolean;
   alarmMessage?: string | null;
   dropSets?: DropSetFields[];
 }
@@ -296,6 +301,7 @@ export async function logWorkoutSetsBatch(
       rir: item.rir,
       effort: item.effort,
       discomfort_notes: item.discomfortNotes,
+      is_warmup: item.isWarmup,
       alarm_message: item.alarmMessage,
       drop_sets: item.dropSets?.map((d) => ({
         weight: d.weight,
