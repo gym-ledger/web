@@ -241,6 +241,29 @@ export async function logWorkoutSet(
   });
 }
 
+export interface UpdateSetPayload {
+  weight?: number | null;
+  toolWeight?: number | null;
+  reps?: number | null;
+  rir?: number | null;
+  effort?: string | null;
+  discomfortNotes?: string | null;
+}
+
+export async function updateWorkoutSet(
+  setId: string,
+  payload: UpdateSetPayload,
+): Promise<WorkoutSet> {
+  return apiClient.put(`/user/workout/sets/${setId}`, {
+    weight: payload.weight,
+    tool_weight: payload.toolWeight,
+    reps: payload.reps,
+    rir: payload.rir,
+    effort: payload.effort,
+    discomfort_notes: payload.discomfortNotes,
+  });
+}
+
 export interface BatchSetItem {
   clientId: string;
   workoutSessionId: string;

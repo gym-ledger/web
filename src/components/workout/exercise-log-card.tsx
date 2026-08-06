@@ -2,15 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchExerciseHistory,
+  updateWorkoutSet,
   type PlanExercise,
   type WorkoutSet,
   type ExerciseHistorySession,
   type ExerciseHistorySet,
 } from "@/lib/api/workout";
+import { ApiError } from "@/lib/api-client";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
@@ -97,6 +99,17 @@ export function ExerciseLogCard({
   // the server yet — keyed by their local clientId (used as the set's `id`
   // until sync resolves it to the real DB row).
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
+
+  // Editing an already-logged set (main or drop) — at most one at a time.
+  // Reuses one set of form fields regardless of which row is being edited.
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState("");
+  const [editToolWeight, setEditToolWeight] = useState("");
+  const [editReps, setEditReps] = useState("");
+  const [editRir, setEditRir] = useState("");
+  const [editEffort, setEditEffort] = useState("");
+  const [editDiscomfort, setEditDiscomfort] = useState("");
+  const [updateSaving, setUpdateSaving] = useState(false);
 
   // Fetched lazily (only once the card is expanded) so we're not firing a
   // history request per exercise on page load.
@@ -253,6 +266,56 @@ export function ExerciseLogCard({
     setDropSets([]);
   }
 
+  // Not-yet-synced rows use a temporary client-generated id, which the
+  // backend doesn't know about yet — editing is blocked until sync resolves
+  // it to the real DB row. Drop sets key off their parent's clientId since
+  // they don't get their own entry in `optimisticIds`.
+  function isPendingSync(set: WorkoutSet) {
+    return optimisticIds.has(set.parent_set_id ?? set.id);
+  }
+
+  function startEditSet(set: WorkoutSet) {
+    setEditingSetId(set.id);
+    setEditWeight(set.weight != null ? String(set.weight) : "");
+    setEditToolWeight(set.tool_weight != null ? String(set.tool_weight) : "");
+    setEditReps(set.reps != null ? String(set.reps) : "");
+    setEditRir(set.rir != null ? String(set.rir) : "");
+    setEditEffort(set.effort ?? "");
+    setEditDiscomfort(set.discomfort_notes ?? "");
+  }
+
+  function cancelEditSet() {
+    setEditingSetId(null);
+  }
+
+  async function handleUpdateSet() {
+    if (!editingSetId) return;
+    const parsedReps = editReps.trim() ? parseInt(editReps, 10) : NaN;
+    if (!editReps.trim() || Number.isNaN(parsedReps) || parsedReps <= 0) {
+      toast.error("Reps is required");
+      return;
+    }
+
+    setUpdateSaving(true);
+    try {
+      const updated = await updateWorkoutSet(editingSetId, {
+        weight: editWeight.trim() ? parseFloat(editWeight) : null,
+        toolWeight: editToolWeight.trim() ? parseFloat(editToolWeight) : null,
+        reps: parsedReps,
+        rir: editRir.trim() ? parseFloat(editRir) : null,
+        effort: editEffort.trim() || null,
+        discomfortNotes: editDiscomfort.trim() || null,
+      });
+      setSets((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditingSetId(null);
+      toast.success("Set updated");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Failed to update set");
+    } finally {
+      setUpdateSaving(false);
+    }
+  }
+
   function handleSave() {
     const parsedReps = reps.trim() ? parseInt(reps, 10) : NaN;
     if (!reps.trim() || Number.isNaN(parsedReps) || parsedReps <= 0) {
@@ -359,79 +422,192 @@ export function ExerciseLogCard({
     onSetLogged(optimisticSet, optimisticDropSets, exercise.rest_seconds ?? 90);
   }
 
+  function renderSetEditForm() {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-primary/40 bg-secondary/30 p-2.5">
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="Weight (kg)"
+            value={editWeight}
+            onChange={(e) => setEditWeight(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-input/25 px-2 text-center text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary/40"
+          />
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="Tool weight (kg)"
+            value={editToolWeight}
+            onChange={(e) => setEditToolWeight(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-input/25 px-2 text-center text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Reps *"
+            value={editReps}
+            onChange={(e) => setEditReps(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-input/25 px-2 text-center text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary/40"
+          />
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="RIR"
+            value={editRir}
+            onChange={(e) => setEditRir(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-input/25 px-2 text-center text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary/40"
+          />
+        </div>
+        <input
+          type="text"
+          placeholder="Effort"
+          value={editEffort}
+          onChange={(e) => setEditEffort(e.target.value)}
+          className="h-8 rounded-lg border border-input bg-input/25 px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40"
+        />
+        <input
+          type="text"
+          placeholder="Joint pain / discomfort (optional)"
+          value={editDiscomfort}
+          onChange={(e) => setEditDiscomfort(e.target.value)}
+          className="h-8 rounded-lg border border-input bg-input/25 px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleUpdateSet}
+            disabled={updateSaving}
+            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {updateSaving && <Loader2 className="size-3 animate-spin" />}
+            Update
+          </button>
+          <button
+            type="button"
+            onClick={cancelEditSet}
+            disabled={updateSaving}
+            className="flex h-8 flex-1 items-center justify-center rounded-lg bg-secondary text-xs font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden">
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="flex w-full items-start justify-between p-4 text-left"
-      >
+      <div className="flex w-full items-start justify-between p-4 text-left">
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-foreground leading-tight">
-            {exerciseName}
-          </h3>
-          {groupedSets.length === 0 ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">No sets logged yet</p>
-          ) : (
+          <button type="button" onClick={handleToggle} className="block w-full text-left">
+            <h3 className="text-base font-bold text-foreground leading-tight">
+              {exerciseName}
+            </h3>
+            {groupedSets.length === 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">No sets logged yet</p>
+            )}
+          </button>
+          {groupedSets.length > 0 && (
             <div className="mt-1.5 flex flex-col gap-1.5">
-              {groupedSets.map(({ main: s, drops }, i) => (
-                <div key={s.id} className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
-                      {s.set_order}
-                    </span>
-                    <span className="tabular-nums text-foreground">
-                      {formatLoad(s.weight, s.tool_weight)} × {s.reps ?? "—"}
-                      {s.rir != null && (
-                        <span className="text-muted-foreground"> · RIR {s.rir}</span>
-                      )}
-                    </span>
-                    <span className="ml-auto flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
-                      {optimisticIds.has(s.id) && (
-                        <CloudOff className="size-3" aria-label="Not yet synced" />
-                      )}
-                      {formatTimeOfDay(s.created_at)}
-                      {i > 0 &&
-                        ` (+${formatElapsedSince(groupedSets[i - 1].main.created_at, s.created_at)})`}
-                    </span>
-                  </div>
-                  {(s.effort || s.discomfort_notes) && (
-                    <p className="pl-7 text-xs text-muted-foreground">
-                      {[s.effort, s.discomfort_notes].filter(Boolean).join(" · ")}
-                    </p>
-                  )}
-                  {drops.map((d) => (
-                    <div key={d.id} className="flex flex-col gap-0.5 pl-7">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
+              {groupedSets.map(({ main: s, drops }, i) => {
+                const mainPending = isPendingSync(s);
+                const isEditingMain = editingSetId === s.id;
+                return (
+                  <div key={s.id} className="flex flex-col gap-0.5">
+                    {isEditingMain ? (
+                      renderSetEditForm()
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => !mainPending && startEditSet(s)}
+                        disabled={mainPending}
+                        className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-left text-sm transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent"
+                      >
+                        <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
+                          {s.set_order}
+                        </span>
                         <span className="tabular-nums text-foreground">
-                          {formatLoad(d.weight, d.tool_weight)} × {d.reps ?? "—"}
-                          {d.rir != null && (
-                            <span className="text-muted-foreground"> · RIR {d.rir}</span>
+                          {formatLoad(s.weight, s.tool_weight)} × {s.reps ?? "—"}
+                          {s.rir != null && (
+                            <span className="text-muted-foreground"> · RIR {s.rir}</span>
                           )}
                         </span>
-                        <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
-                          {formatTimeOfDay(d.created_at)}
+                        <span className="ml-auto flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                          {mainPending && (
+                            <CloudOff className="size-3" aria-label="Not yet synced" />
+                          )}
+                          {formatTimeOfDay(s.created_at)}
+                          {i > 0 &&
+                            ` (+${formatElapsedSince(groupedSets[i - 1].main.created_at, s.created_at)})`}
+                          {!mainPending && <Pencil className="size-3" aria-hidden />}
                         </span>
-                      </div>
-                      {(d.effort || d.discomfort_notes) && (
-                        <p className="pl-6 text-[11px] text-muted-foreground">
-                          {[d.effort, d.discomfort_notes].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
+                      </button>
+                    )}
+                    {!isEditingMain && (s.effort || s.discomfort_notes) && (
+                      <p className="pl-7 text-xs text-muted-foreground">
+                        {[s.effort, s.discomfort_notes].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {drops.map((d) => {
+                      const dropPending = isPendingSync(d);
+                      const isEditingDrop = editingSetId === d.id;
+                      return (
+                        <div key={d.id} className="flex flex-col gap-0.5 pl-7">
+                          {isEditingDrop ? (
+                            renderSetEditForm()
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => !dropPending && startEditSet(d)}
+                              disabled={dropPending}
+                              className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-left text-xs transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent"
+                            >
+                              <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
+                              <span className="tabular-nums text-foreground">
+                                {formatLoad(d.weight, d.tool_weight)} × {d.reps ?? "—"}
+                                {d.rir != null && (
+                                  <span className="text-muted-foreground"> · RIR {d.rir}</span>
+                                )}
+                              </span>
+                              <span className="ml-auto flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">
+                                {dropPending && (
+                                  <CloudOff className="size-3" aria-label="Not yet synced" />
+                                )}
+                                {formatTimeOfDay(d.created_at)}
+                                {!dropPending && <Pencil className="size-3" aria-hidden />}
+                              </span>
+                            </button>
+                          )}
+                          {!isEditingDrop && (d.effort || d.discomfort_notes) && (
+                            <p className="pl-6 text-[11px] text-muted-foreground">
+                              {[d.effort, d.discomfort_notes].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-        {isExpanded ? (
-          <ChevronUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        )}
-      </button>
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+          className="p-0.5"
+        >
+          {isExpanded ? (
+            <ChevronUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          )}
+        </button>
+      </div>
 
       <AnimatePresence initial={false}>
         {isExpanded && (
