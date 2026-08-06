@@ -520,12 +520,7 @@ export function ExerciseLogCard({
                     {isEditingMain ? (
                       renderSetEditForm()
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => !mainPending && startEditSet(s)}
-                        disabled={mainPending}
-                        className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-left text-sm transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent"
-                      >
+                      <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-sm">
                         <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
                           {s.set_order}
                         </span>
@@ -542,9 +537,18 @@ export function ExerciseLogCard({
                           {formatTimeOfDay(s.created_at)}
                           {i > 0 &&
                             ` (+${formatElapsedSince(groupedSets[i - 1].main.created_at, s.created_at)})`}
-                          {!mainPending && <Pencil className="size-3" aria-hidden />}
+                          {!mainPending && (
+                            <button
+                              type="button"
+                              onClick={() => startEditSet(s)}
+                              aria-label="Edit set"
+                              className="-m-1.5 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                            >
+                              <Pencil className="size-3" />
+                            </button>
+                          )}
                         </span>
-                      </button>
+                      </div>
                     )}
                     {!isEditingMain && (s.effort || s.discomfort_notes) && (
                       <p className="pl-7 text-xs text-muted-foreground">
@@ -559,12 +563,7 @@ export function ExerciseLogCard({
                           {isEditingDrop ? (
                             renderSetEditForm()
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => !dropPending && startEditSet(d)}
-                              disabled={dropPending}
-                              className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-left text-xs transition-colors hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-transparent"
-                            >
+                            <div className="-mx-1 flex items-center gap-2 rounded-lg px-1 text-xs">
                               <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
                               <span className="tabular-nums text-foreground">
                                 {formatLoad(d.weight, d.tool_weight)} × {d.reps ?? "—"}
@@ -577,9 +576,18 @@ export function ExerciseLogCard({
                                   <CloudOff className="size-3" aria-label="Not yet synced" />
                                 )}
                                 {formatTimeOfDay(d.created_at)}
-                                {!dropPending && <Pencil className="size-3" aria-hidden />}
+                                {!dropPending && (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditSet(d)}
+                                    aria-label="Edit drop set"
+                                    className="-m-1.5 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                                  >
+                                    <Pencil className="size-3" />
+                                  </button>
+                                )}
                               </span>
-                            </button>
+                            </div>
                           )}
                           {!isEditingDrop && (d.effort || d.discomfort_notes) && (
                             <p className="pl-6 text-[11px] text-muted-foreground">
