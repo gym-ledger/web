@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Trophy, Flame, Dumbbell, TrendingUp, Target, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
@@ -15,19 +14,12 @@ const notifIcons: Record<string, React.ElementType> = {
   milestone: Target,
 };
 
+// There is no notifications backend yet (see DUMMY_UI_AUDIT.md #5) — the list
+// below is illustrative-only mock data. "Mark read" / "Mark all read" would
+// silently do nothing real (no persistence), so those actions are disabled
+// rather than wired to fake local state.
 export default function NotificationsPage() {
-  const [notifs, setNotifs] = useState(initialNotifications);
-
-  const markAllRead = () => {
-    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markRead = (id: string) => {
-    setNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
-
+  const notifs = initialNotifications;
   const unreadCount = notifs.filter((n) => !n.read).length;
 
   return (
@@ -49,8 +41,11 @@ export default function NotificationsPage() {
         </div>
         {unreadCount > 0 && (
           <button
-            onClick={markAllRead}
-            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            type="button"
+            disabled
+            title="Not available yet"
+            aria-disabled="true"
+            className="flex cursor-not-allowed items-center gap-1 text-xs font-medium text-muted-foreground opacity-50"
           >
             <Check className="size-3.5" />
             Mark all read
@@ -61,14 +56,13 @@ export default function NotificationsPage() {
       {/* Notifications list */}
       <div className="flex flex-col px-4 py-4 gap-2">
         {notifs.map((notif, i) => (
-          <motion.button
+          <motion.div
             key={notif.id}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            onClick={() => markRead(notif.id)}
             className={cn(
-              "flex items-start gap-3 rounded-2xl p-4 text-left ring-1 transition-all w-full",
+              "flex items-start gap-3 rounded-2xl p-4 text-left ring-1 w-full",
               notif.read
                 ? "bg-card ring-foreground/8 opacity-70"
                 : "bg-card ring-foreground/12"
@@ -99,7 +93,7 @@ export default function NotificationsPage() {
               </p>
               <p className="mt-1.5 text-[10px] text-muted-foreground/60">{notif.timestamp}</p>
             </div>
-          </motion.button>
+          </motion.div>
         ))}
 
         {notifs.every((n) => n.read) && (

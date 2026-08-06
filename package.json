@@ -12,6 +12,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.100.11",
     "axios": "^1.16.1",
+    "body-muscles": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.2.1",

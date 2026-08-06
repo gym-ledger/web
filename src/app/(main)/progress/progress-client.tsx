@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { LineChart, BarChart } from "@/components/progress/mini-chart";
 import { BodyTab } from "@/components/weight/body-tab";
+import { MuscleBodyMap } from "@/components/progress/muscle-body-map";
 import {
   overviewStats,
   weeklyVolumeData,
@@ -197,9 +198,14 @@ export function ProgressPageClient({ defaultTab }: Props) {
         {/* Volume */}
         <TabsContent value="volume">
           <div className="flex flex-col gap-4">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <MuscleBodyMap />
+            </motion.div>
+
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
               className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
             >
               <div className="flex items-center justify-between mb-2">

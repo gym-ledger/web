@@ -1,65 +1,115 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, ChevronRight, Dumbbell, Settings2, Link2, User, Gauge } from "lucide-react";
+import { Search, ChevronRight, Dumbbell, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
-import { exercises, muscleGroups } from "@/lib/data/exercises";
+import { fetchExercises, fetchMuscles, type ExerciseListItem, type Muscle } from "@/lib/api/exercises";
+import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
-const difficultyColors = {
-  beginner: "text-emerald-400 bg-emerald-400/10",
-  intermediate: "text-yellow-400 bg-yellow-400/10",
-  advanced: "text-red-400 bg-red-400/10",
-};
+const PAGE_LIMIT = 30;
+const SEARCH_DEBOUNCE_MS = 300;
 
-const equipmentIcons: Record<string, React.ElementType> = {
-  barbell: Dumbbell,
-  dumbbell: Dumbbell,
-  machine: Settings2,
-  cable: Link2,
-  bodyweight: User,
-  kettlebell: Gauge,
-  "ez-bar": Dumbbell,
-};
+function titleCase(s: string) {
+  return s.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-function muscleFilterMatch(exercise: typeof exercises[0], filter: string) {
-  if (filter === "All") return true;
-  const f = filter.toLowerCase();
-  if (f === "arms") {
-    return (
-      exercise.primaryMuscle === "biceps" ||
-      exercise.primaryMuscle === "triceps" ||
-      exercise.primaryMuscle === "forearms"
-    );
-  }
-  return (
-    exercise.primaryMuscle === f ||
-    exercise.secondaryMuscles.includes(f as never)
-  );
+/** Muscle a card badges itself with — the one it trains most. */
+function primaryMuscle(exercise: ExerciseListItem) {
+  return exercise.muscles[0] ?? null;
 }
 
 export default function ExercisesPage() {
+  const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeBodyRegion, setActiveBodyRegion] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return exercises.filter((ex) => {
-      const matchesSearch =
-        !query ||
-        ex.name.toLowerCase().includes(query.toLowerCase()) ||
-        ex.primaryMuscle.toLowerCase().includes(query.toLowerCase());
-      const matchesFilter = muscleFilterMatch(ex, activeFilter);
-      return matchesSearch && matchesFilter;
+  const [muscles, setMuscles] = useState<Muscle[]>([]);
+  const [exercises, setExercises] = useState<ExerciseListItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isPending, startTransition] = useTransition();
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounce the search box so we're not firing a request per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setQuery(rawQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [rawQuery]);
+
+  useEffect(() => {
+    fetchMuscles()
+      .then(setMuscles)
+      .catch(() => setMuscles([]));
+  }, []);
+
+  // Body regions actually present in the muscle catalog, in the server's
+  // display order, deduped — these drive the filter chips instead of a
+  // hardcoded guess at the taxonomy.
+  const bodyRegions = useMemo(() => {
+    const seen = new Set<string>();
+    const regions: string[] = [];
+    for (const m of muscles) {
+      if (m.body_region && !seen.has(m.body_region)) {
+        seen.add(m.body_region);
+        regions.push(m.body_region);
+      }
+    }
+    return regions;
+  }, [muscles]);
+
+  useEffect(() => {
+    let cancelled = false;
+    startTransition(async () => {
+      try {
+        const res = await fetchExercises({
+          search: query || undefined,
+          bodyRegion: activeBodyRegion ?? undefined,
+          page: 1,
+          limit: PAGE_LIMIT,
+        });
+        if (cancelled) return;
+        setExercises(res.data);
+        setPage(res.meta.page);
+        setTotalPages(res.meta.totalPages);
+        setTotalCount(res.meta.totalCount);
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof ApiError ? err.message : "Failed to load exercises");
+      }
     });
-  }, [query, activeFilter]);
+    return () => {
+      cancelled = true;
+    };
+  }, [query, activeBodyRegion]);
+
+  function loadMore() {
+    setLoadingMore(true);
+    fetchExercises({
+      search: query || undefined,
+      bodyRegion: activeBodyRegion ?? undefined,
+      page: page + 1,
+      limit: PAGE_LIMIT,
+    })
+      .then((res) => {
+        setExercises((prev) => [...prev, ...res.data]);
+        setPage(res.meta.page);
+        setTotalPages(res.meta.totalPages);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }
 
   return (
     <div className="flex flex-col pt-4">
       <div className="px-4">
-        <PageHeader title="Exercises" subtitle={`${exercises.length} exercises`} />
+        <PageHeader title="Exercises" subtitle={isPending ? "Loading…" : `${totalCount} exercises`} />
       </div>
 
       {/* Sticky search + filters */}
@@ -69,88 +119,108 @@ export default function ExercisesPage() {
           <Input
             type="search"
             placeholder="Search exercises..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={rawQuery}
+            onChange={(e) => setRawQuery(e.target.value)}
             className="h-11 rounded-xl pl-9 text-base"
           />
         </div>
 
-        {/* Filter chips */}
-        <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-          {muscleGroups.map((group) => (
+        {bodyRegions.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
             <button
-              key={group}
-              onClick={() => setActiveFilter(group)}
+              onClick={() => setActiveBodyRegion(null)}
               className={cn(
                 "shrink-0 rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors",
-                activeFilter === group
+                activeBodyRegion === null
                   ? "bg-primary text-primary-foreground"
                   : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
               )}
             >
-              {group}
+              All
             </button>
-          ))}
-        </div>
+            {bodyRegions.map((region) => (
+              <button
+                key={region}
+                onClick={() => setActiveBodyRegion(region)}
+                className={cn(
+                  "shrink-0 rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  activeBodyRegion === region
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                )}
+              >
+                {titleCase(region)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Exercise list */}
       <div className="flex flex-col gap-2 px-4 pb-4">
-        {filtered.length === 0 ? (
+        {error ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        ) : isPending && exercises.length === 0 ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : exercises.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <Search className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No exercises found for &quot;{query}&quot;</p>
+            <p className="text-sm text-muted-foreground">
+              No exercises found{query ? ` for "${query}"` : ""}
+            </p>
           </div>
         ) : (
-          filtered.map((ex, i) => {
-            const EquipIcon = equipmentIcons[ex.equipment] ?? Dumbbell;
-            return (
-            <motion.div
-              key={ex.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, delay: Math.min(i * 0.03, 0.3) }}
-            >
-              <Link href={`/exercises/${ex.id}`}>
-                <div className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
-                  {/* Equipment icon */}
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
-                    <EquipIcon className="size-5 text-muted-foreground" />
-                  </div>
+          <>
+            {exercises.map((ex, i) => {
+              const top = primaryMuscle(ex);
+              return (
+                <motion.div
+                  key={ex.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, delay: Math.min(i * 0.03, 0.3) }}
+                >
+                  <Link href={`/exercises/${ex.id}`}>
+                    <div className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
+                        <Dumbbell className="size-5 text-muted-foreground" />
+                      </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      {ex.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground capitalize">
-                        {ex.primaryMuscle}
-                      </span>
-                      <span className="text-muted-foreground/30">·</span>
-                      <span className="text-xs text-muted-foreground capitalize">
-                        {ex.equipment}
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {ex.name}
+                        </p>
+                        {top && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {top.name}
+                            {ex.muscles.length > 1 && ` +${ex.muscles.length - 1} more`}
+                          </p>
+                        )}
+                      </div>
+
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                     </div>
-                  </div>
+                  </Link>
+                </motion.div>
+              );
+            })}
 
-                  {/* Difficulty + arrow */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={cn(
-                        "text-xs font-medium rounded-lg px-2 py-0.5 capitalize",
-                        difficultyColors[ex.difficulty]
-                      )}
-                    >
-                      {ex.difficulty}
-                    </span>
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </Link>
-            </motion.div>
-            );
-          })
+            {page < totalPages && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="mt-2 flex h-10 items-center justify-center gap-2 rounded-xl bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+              >
+                {loadingMore && <Loader2 className="size-3.5 animate-spin" />}
+                Load more
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
