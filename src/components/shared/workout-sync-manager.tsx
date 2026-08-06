@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
+import { flushWorkoutSetUpdateQueue } from "@/lib/offline/flushWorkoutSetUpdateQueue";
+import { useWorkoutSetUpdateQueueStore } from "@/lib/offline/workoutSetUpdateQueue";
 
 const NORMAL_INTERVAL_MS = 30_000;
 const BACKOFF_INTERVAL_MS = 60_000;
@@ -20,9 +22,11 @@ export function WorkoutSyncManager() {
 
     async function tick() {
       if (cancelled) return;
-      await flushWorkoutSetQueue();
+      await Promise.all([flushWorkoutSetQueue(), flushWorkoutSetUpdateQueue()]);
       if (cancelled) return;
-      const failedRecently = useWorkoutSetQueueStore.getState().lastFlushFailedAt != null;
+      const failedRecently =
+        useWorkoutSetQueueStore.getState().lastFlushFailedAt != null ||
+        useWorkoutSetUpdateQueueStore.getState().lastFlushFailedAt != null;
       timeoutId = setTimeout(tick, failedRecently ? BACKOFF_INTERVAL_MS : NORMAL_INTERVAL_MS);
     }
 
@@ -30,6 +34,7 @@ export function WorkoutSyncManager() {
 
     function handleOnline() {
       flushWorkoutSetQueue();
+      flushWorkoutSetUpdateQueue();
     }
     window.addEventListener("online", handleOnline);
 

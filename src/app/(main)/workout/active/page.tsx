@@ -188,14 +188,17 @@ export default function ActiveWorkoutPage() {
 
     async function init() {
       try {
-        const ongoing = await fetchOngoingWorkoutSession();
+        // `plans` doesn't depend on `ongoing`'s result — fetched alongside it
+        // (not after) instead of separately in each branch below, cutting a
+        // round-trip off both the resume-in-progress and fresh-start paths.
+        const [ongoing, plans] = await Promise.all([
+          fetchOngoingWorkoutSession(),
+          fetchActiveWorkoutPlans(),
+        ]);
         if (cancelled) return;
 
         if (ongoing?.program_day_id && ongoing.program_day_session_id) {
-          const [plans, dayList] = await Promise.all([
-            fetchActiveWorkoutPlans(),
-            fetchProgramDays(ongoing.assignment_id),
-          ]);
+          const dayList = await fetchProgramDays(ongoing.assignment_id);
           if (cancelled) return;
           const assignmentObj = plans.find((p) => p.id === ongoing.assignment_id);
           const dayObj = dayList.find((d) => d.id === ongoing.program_day_id);
@@ -219,7 +222,7 @@ export default function ActiveWorkoutPage() {
           return;
         }
 
-        pickFromAssignments(await fetchActiveWorkoutPlans());
+        pickFromAssignments(plans);
       } catch {
         if (!cancelled) setStep("error");
       }

@@ -1,18 +1,32 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { TrendingUp, Dumbbell, Clock, Target } from "lucide-react";
+import dynamic from "next/dynamic";
+import { TrendingUp, Dumbbell, Clock, Target, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { LineChart, BarChart } from "@/components/progress/mini-chart";
 import { BodyTab } from "@/components/weight/body-tab";
-import { MuscleBodyMap } from "@/components/progress/muscle-body-map";
 import {
   overviewStats,
   weeklyVolumeData,
   benchPressProgress,
   squatProgress,
 } from "@/lib/data/progress";
+
+// Code-split out the body-muscles SVG library (only needed once the Volume
+// tab is actually opened) instead of shipping it in the initial /progress bundle.
+const MuscleBodyMap = dynamic(
+  () => import("@/components/progress/muscle-body-map").then((mod) => mod.MuscleBodyMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center rounded-2xl bg-card p-4 ring-1 ring-foreground/10 py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
 
 function StatCard({
   label,

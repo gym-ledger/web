@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/shared/providers";
@@ -16,13 +16,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "APEX — Science-based Training",
   description: "Track workouts, build strength, achieve your goals.",
+  applicationName: "APEX",
+  appleWebApp: {
+    capable: true,
+    title: "APEX",
+    statusBarStyle: "black-translucent",
+  },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  themeColor: "#147fff",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({

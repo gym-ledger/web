@@ -6,17 +6,18 @@ import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pe
 import { toast } from "sonner";
 import {
   fetchExerciseHistory,
-  updateWorkoutSet,
   type PlanExercise,
   type WorkoutSet,
+  type UpdateSetPayload,
   type ExerciseHistorySession,
   type ExerciseHistorySet,
 } from "@/lib/api/workout";
-import { ApiError } from "@/lib/api-client";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
+import { useWorkoutSetUpdateQueueStore } from "@/lib/offline/workoutSetUpdateQueue";
+import { flushWorkoutSetUpdateQueue } from "@/lib/offline/flushWorkoutSetUpdateQueue";
 
 const MAX_DROP_SETS = 10;
 
@@ -109,7 +110,9 @@ export function ExerciseLogCard({
   const [editRir, setEditRir] = useState("");
   const [editEffort, setEditEffort] = useState("");
   const [editDiscomfort, setEditDiscomfort] = useState("");
-  const [updateSaving, setUpdateSaving] = useState(false);
+  // Edits not yet confirmed by the server (still queued/offline) — reactive,
+  // so rows update the moment the sync manager flushes them.
+  const pendingSetUpdates = useWorkoutSetUpdateQueueStore((state) => state.queue);
 
   // Fetched lazily (only once the card is expanded) so we're not firing a
   // history request per exercise on page load.
@@ -162,6 +165,29 @@ export function ExerciseLogCard({
         return next;
       });
       resolvedNow.forEach((clientId) => useWorkoutSetQueueStore.getState().consumeResolved(clientId));
+    });
+    return unsubscribe;
+  }, []);
+
+  // Reconciles queued edits once the offline sync manager confirms them —
+  // swaps the optimistic local edit for the server-confirmed row. Only
+  // consumes entries that actually matched a set this card holds, so cards
+  // for other exercises don't race each other to consume a shared resolved
+  // entry before its owning card has processed it.
+  useEffect(() => {
+    const unsubscribe = useWorkoutSetUpdateQueueStore.subscribe((state) => {
+      if (Object.keys(state.resolved).length === 0) return;
+      setSets((prev) => {
+        const matchedIds: string[] = [];
+        const next = prev.map((s) => {
+          const result = state.resolved[s.id];
+          if (!result) return s;
+          matchedIds.push(s.id);
+          return result.set;
+        });
+        matchedIds.forEach((id) => useWorkoutSetUpdateQueueStore.getState().consumeResolved(id));
+        return matchedIds.length > 0 ? next : prev;
+      });
     });
     return unsubscribe;
   }, []);
@@ -274,6 +300,13 @@ export function ExerciseLogCard({
     return optimisticIds.has(set.parent_set_id ?? set.id);
   }
 
+  // A queued edit (last-write-wins per setId) doesn't block re-editing —
+  // unlike a not-yet-created set, it's always safe to overwrite a queued
+  // edit with a newer one. It only affects the "not yet synced" indicator.
+  function hasPendingUpdate(set: WorkoutSet) {
+    return set.id in pendingSetUpdates;
+  }
+
   function startEditSet(set: WorkoutSet) {
     setEditingSetId(set.id);
     setEditWeight(set.weight != null ? String(set.weight) : "");
@@ -288,7 +321,7 @@ export function ExerciseLogCard({
     setEditingSetId(null);
   }
 
-  async function handleUpdateSet() {
+  function handleUpdateSet() {
     if (!editingSetId) return;
     const parsedReps = editReps.trim() ? parseInt(editReps, 10) : NaN;
     if (!editReps.trim() || Number.isNaN(parsedReps) || parsedReps <= 0) {
@@ -296,24 +329,42 @@ export function ExerciseLogCard({
       return;
     }
 
-    setUpdateSaving(true);
-    try {
-      const updated = await updateWorkoutSet(editingSetId, {
-        weight: editWeight.trim() ? parseFloat(editWeight) : null,
-        toolWeight: editToolWeight.trim() ? parseFloat(editToolWeight) : null,
-        reps: parsedReps,
-        rir: editRir.trim() ? parseFloat(editRir) : null,
-        effort: editEffort.trim() || null,
-        discomfortNotes: editDiscomfort.trim() || null,
-      });
-      setSets((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      setEditingSetId(null);
-      toast.success("Set updated");
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Failed to update set");
-    } finally {
-      setUpdateSaving(false);
-    }
+    const payload: UpdateSetPayload = {
+      weight: editWeight.trim() ? parseFloat(editWeight) : null,
+      toolWeight: editToolWeight.trim() ? parseFloat(editToolWeight) : null,
+      reps: parsedReps,
+      rir: editRir.trim() ? parseFloat(editRir) : null,
+      effort: editEffort.trim() || null,
+      discomfortNotes: editDiscomfort.trim() || null,
+    };
+    const setId = editingSetId;
+
+    // Applied instantly and optimistically, mirroring handleSave's pattern
+    // for new sets — the real write happens via the offline update queue
+    // (flushed immediately if online, otherwise picked up by the app-wide
+    // sync manager), so editing a set works the same with or without a
+    // connection.
+    setSets((prev) =>
+      prev.map((s) =>
+        s.id === setId
+          ? {
+              ...s,
+              weight: payload.weight ?? null,
+              tool_weight: payload.toolWeight ?? null,
+              reps: payload.reps ?? null,
+              rir: payload.rir ?? null,
+              effort: payload.effort ?? null,
+              discomfort_notes: payload.discomfortNotes ?? null,
+            }
+          : s,
+      ),
+    );
+    setEditingSetId(null);
+
+    useWorkoutSetUpdateQueueStore.getState().enqueue(setId, payload);
+    flushWorkoutSetUpdateQueue();
+
+    toast.success("Set updated");
   }
 
   function handleSave() {
@@ -479,17 +530,14 @@ export function ExerciseLogCard({
           <button
             type="button"
             onClick={handleUpdateSet}
-            disabled={updateSaving}
-            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            {updateSaving && <Loader2 className="size-3 animate-spin" />}
             Update
           </button>
           <button
             type="button"
             onClick={cancelEditSet}
-            disabled={updateSaving}
-            className="flex h-8 flex-1 items-center justify-center rounded-lg bg-secondary text-xs font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+            className="flex h-8 flex-1 items-center justify-center rounded-lg bg-secondary text-xs font-medium text-foreground transition-colors hover:bg-secondary/80"
           >
             Cancel
           </button>
@@ -514,6 +562,7 @@ export function ExerciseLogCard({
             <div className="mt-1.5 flex flex-col gap-1.5">
               {groupedSets.map(({ main: s, drops }, i) => {
                 const mainPending = isPendingSync(s);
+                const mainNotSynced = mainPending || hasPendingUpdate(s);
                 const isEditingMain = editingSetId === s.id;
                 return (
                   <div key={s.id} className="flex flex-col gap-0.5">
@@ -534,7 +583,7 @@ export function ExerciseLogCard({
                           )}
                         </span>
                         <span className="ml-auto flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground">
-                          {mainPending && (
+                          {mainNotSynced && (
                             <CloudOff className="size-3" aria-label="Not yet synced" />
                           )}
                           {formatTimeOfDay(s.created_at)}
@@ -563,6 +612,7 @@ export function ExerciseLogCard({
                     )}
                     {drops.map((d) => {
                       const dropPending = isPendingSync(d);
+                      const dropNotSynced = dropPending || hasPendingUpdate(d);
                       const isEditingDrop = editingSetId === d.id;
                       return (
                         <div key={d.id} className="flex flex-col gap-0.5 pl-7">
@@ -581,7 +631,7 @@ export function ExerciseLogCard({
                                 )}
                               </span>
                               <span className="ml-auto flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">
-                                {dropPending && (
+                                {dropNotSynced && (
                                   <CloudOff className="size-3" aria-label="Not yet synced" />
                                 )}
                                 {formatTimeOfDay(d.created_at)}

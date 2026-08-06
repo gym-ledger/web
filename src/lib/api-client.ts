@@ -3,6 +3,10 @@ import { useAuthStore } from "@/auth/authStore";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
+// Generous enough for slow/3G-class connections, but bounded — without this a
+// stalled request on a flaky connection hangs indefinitely with no feedback.
+const REQUEST_TIMEOUT_MS = 20_000;
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -35,7 +39,19 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      headers,
+      signal: fetchOptions.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new ApiError(0, "Request timed out — check your connection and try again");
+    }
+    throw new ApiError(0, "Network error — check your connection and try again");
+  }
 
   if (res.status === 401 && !_retried) {
     const { refreshToken } = useAuthStore.getState();
@@ -64,7 +80,16 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     error?: { message?: string };
     message?: string;
   };
-  const body = (await res.json().catch(() => null)) as ApiBody | null;
+  let body: ApiBody;
+  try {
+    body = (await res.json()) as ApiBody;
+  } catch {
+    // The backend always sends a JSON body (see responseSend on the API side)
+    // — a parse failure here means the response was truncated/corrupted in
+    // transit, not that it was legitimately empty. Treating it as `null`
+    // data would silently return `undefined` as if the request succeeded.
+    throw new ApiError(res.status, "Received an incomplete response — check your connection and try again");
+  }
 
   if (!res.ok || body?.success === false) {
     const message = body?.error?.message ?? body?.message ?? "Something went wrong";
