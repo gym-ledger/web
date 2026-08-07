@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Play, Loader2, History } from "lucide-react";
 import { toast } from "sonner";
@@ -28,11 +29,13 @@ function AssignmentCard({
   onDeactivate: () => void;
   onReactivate: () => void;
 }) {
+  const router = useRouter();
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden"
+      onClick={() => router.push(`/workout/plans/${assignment.workout_program_version_id}`)}
+      className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden cursor-pointer hover:ring-primary/30 transition-all"
     >
       <div className={`h-1 ${assignment.is_active ? "bg-primary" : "bg-border"}`} />
       <div className="p-4">
@@ -60,7 +63,7 @@ function AssignmentCard({
           )}
         </div>
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
           {assignment.is_active ? (
             <>
               <Link href="/workout/active" className="flex-1">
@@ -108,11 +111,13 @@ function PublicPlanCard({
   busy: boolean;
   onSelect: () => void;
 }) {
+  const router = useRouter();
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl bg-card ring-1 ring-foreground/10 p-4"
+      onClick={() => router.push(`/workout/plans/${plan.workout_program_version_id}`)}
+      className="rounded-2xl bg-card ring-1 ring-foreground/10 p-4 cursor-pointer hover:ring-primary/30 transition-all"
     >
       <div className="flex items-center gap-2">
         <span className="text-xs font-bold uppercase tracking-wider text-primary">
@@ -130,7 +135,10 @@ function PublicPlanCard({
         size="sm"
         variant={selected ? "outline" : "default"}
         disabled={busy || selected}
-        onClick={onSelect}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
       >
         {busy && <Loader2 className="size-3.5 animate-spin" />}
         {selected ? "Selected" : "Select plan"}

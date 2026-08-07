@@ -59,6 +59,63 @@ export async function deselectWorkoutPlan(assignmentId: string): Promise<Workout
   return apiClient.delete<WorkoutPlanAssignment>(`/user/workout/plans/${assignmentId}`);
 }
 
+export interface PlanDetailExercise {
+  id: string;
+  workout_program_day_session_id: string;
+  exercise_order: number;
+  target_sets: number | null;
+  min_reps: number | null;
+  max_reps: number | null;
+  target_rir: number | null;
+  rest_seconds: number | null;
+  tempo: string | null;
+  notes: string | null;
+  exercise: {
+    id: string;
+    name: string;
+    slug: string;
+    image_url: string | null;
+    description: string | null;
+  } | null;
+}
+
+export interface PlanDetailSession {
+  id: string;
+  workout_program_day_id: string;
+  name: string;
+  exercises: PlanDetailExercise[];
+}
+
+export interface PlanDetailDay {
+  id: string;
+  day_number: number;
+  name: string;
+  sessions: PlanDetailSession[];
+}
+
+export interface PlanDetail {
+  workout_program_id: string;
+  program_name: string;
+  program_slug: string;
+  program_visibility: string;
+  workout_program_version_id: string;
+  version_number: number;
+  version_name: string | null;
+  version_visibility: string;
+  description: string;
+  training_days: number;
+  split_type: string;
+  session_ordering_logic: string;
+  duration_type: string;
+  duration_weeks: number;
+  program_days: PlanDetailDay[];
+}
+
+/** Full read-only config of a plan — every day (including rest days), session, and exercise. */
+export async function fetchPlanDetail(workoutProgramVersionId: string): Promise<PlanDetail> {
+  return apiClient.get<PlanDetail>(`/user/workout/plans/${workoutProgramVersionId}/detail`);
+}
+
 // ---------------------------------------------------------------------------
 // Day / session / exercise browsing
 // ---------------------------------------------------------------------------
@@ -77,10 +134,11 @@ export interface ProgramDaySession {
 
 export interface PlanExercise {
   id: string;
-  exercise_order: number;
-  target_sets: number;
-  min_reps: number;
-  max_reps: number;
+  /** Null for an exercise added ad-hoc mid-session — it has no plan-defined ordering/targets. */
+  exercise_order: number | null;
+  target_sets: number | null;
+  min_reps: number | null;
+  max_reps: number | null;
   target_rir: number | null;
   rest_seconds: number | null;
   tempo: string | null;
@@ -115,6 +173,16 @@ export async function fetchSessionExercises(
   return apiClient.get<PlanExercise[]>(
     `/user/workout/assignments/${assignmentId}/days/${dayId}/sessions/${sessionId}/exercises`,
   );
+}
+
+/** Adds an exercise to a live session that isn't part of the programmed plan (e.g. a machine was unavailable). */
+export async function addAdhocExercise(
+  sessionId: string,
+  exerciseId: string,
+): Promise<PlanExercise> {
+  return apiClient.post<PlanExercise>(`/user/workout/sessions/${sessionId}/adhoc-exercise`, {
+    exercise_id: exerciseId,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +405,9 @@ export interface ExerciseHistorySession {
   workout_session_id: string;
   started_at: string;
   plan_name: string;
-  day_name: string;
-  session_name: string;
+  /** Null when this occurrence was logged ad-hoc, not as part of an admin-authored day/session. */
+  day_name: string | null;
+  session_name: string | null;
   sets: ExerciseHistorySet[];
 }
 
@@ -409,7 +478,8 @@ export interface WorkoutSessionDetailExercise {
   workout_program_exercise_id: string;
   exercise_id: string;
   exercise_name: string;
-  exercise_order: number;
+  exercise_order: number | null;
+  is_adhoc: boolean;
   sets: WorkoutSessionDetailSet[];
 }
 
@@ -446,4 +516,58 @@ export async function fetchActiveAlarms(): Promise<ActiveAlarm[]> {
 
 export async function discardAlarm(alarmId: string): Promise<WorkoutSetAlarm> {
   return apiClient.post<WorkoutSetAlarm>(`/user/workout/alarms/${alarmId}/discard`);
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard stats
+// ---------------------------------------------------------------------------
+
+export interface DashboardStats {
+  current_streak: number;
+  /** Monday-Sunday of the current calendar week, in the user's timezone. */
+  week: { date: string; trained: boolean; required: boolean }[];
+  weekly_volume: number;
+  weight_units: "kg" | "lbs";
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  return apiClient.get<DashboardStats>("/user/workout/stats/dashboard");
+}
+
+export interface PersonalRecord {
+  exercise_id: string;
+  exercise_name: string;
+  exercise_slug: string;
+  image_url: string | null;
+  /** When this record was set. */
+  achieved_at: string;
+  /** weight + tool_weight for the record-setting set. */
+  load: number;
+  reps: number;
+  /** Estimated one-rep max (Epley) — see workout-gym-api/algorithms/personal-records.md. */
+  e1rm: number;
+}
+
+/** Current PR per exercise, most-recently-set first. */
+export async function fetchRecentPRs(limit?: number): Promise<PersonalRecord[]> {
+  const qs = limit ? `?limit=${limit}` : "";
+  return apiClient.get<PersonalRecord[]>(`/user/workout/stats/recent-prs${qs}`);
+}
+
+export interface ProgressOverview {
+  total_volume: number;
+  total_workouts: number;
+  avg_duration_seconds: number | null;
+  weight_units: "kg" | "lbs";
+  /** Last 8 calendar weeks, oldest first. */
+  weekly_volume_series: { week_start: string; volume: number }[];
+  week_over_week_change_pct: number | null;
+  best_week_volume: number;
+  avg_week_volume: number;
+  /** Last 4 weeks vs. the 4 weeks from ~9-12 weeks back. */
+  growth_rate_pct: number | null;
+}
+
+export async function fetchProgressOverview(): Promise<ProgressOverview> {
+  return apiClient.get<ProgressOverview>("/user/workout/stats/progress-overview");
 }

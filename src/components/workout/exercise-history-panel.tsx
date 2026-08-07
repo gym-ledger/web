@@ -87,7 +87,7 @@ export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHi
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-foreground truncate">
-                      {session.plan_name} · {session.day_name}
+                      {session.plan_name} · {session.day_name ?? "Added exercise"}
                       {session.session_name ? ` (${session.session_name})` : ""}
                     </span>
                     <span className="shrink-0 text-[10px] text-muted-foreground">

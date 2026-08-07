@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, CloudOff, Loader2, RefreshCw } from "lucide-react";
+import { ChevronRight, CloudOff, Loader2, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { ExerciseLogCard } from "@/components/workout/exercise-log-card";
 import { RestTimer } from "@/components/workout/rest-timer";
+import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
 import { Button } from "@/components/ui/button";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
@@ -19,6 +20,7 @@ import {
   startWorkoutSession,
   finishWorkoutSession,
   fetchOngoingWorkoutSession,
+  addAdhocExercise,
   type WorkoutPlanAssignment,
   type ProgramDay,
   type ProgramDaySession,
@@ -26,6 +28,7 @@ import {
   type WorkoutSession,
   type WorkoutSet,
 } from "@/lib/api/workout";
+import type { ExerciseListItem } from "@/lib/api/exercises";
 
 type Step =
   | "loading"
@@ -138,6 +141,8 @@ export default function ActiveWorkoutPage() {
   const [restKey, setRestKey] = useState(0);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [addExerciseOpen, setAddExerciseOpen] = useState(false);
+  const [addingExercise, setAddingExercise] = useState(false);
 
   function pickFromAssignments(plans: WorkoutPlanAssignment[]) {
     setActiveAssignments(plans);
@@ -307,6 +312,21 @@ export default function ActiveWorkoutPage() {
     setRestDuration(restSeconds);
     setRestVisible(true);
     setRestKey((k) => k + 1);
+  }
+
+  async function handleAddExercise(ex: ExerciseListItem) {
+    if (!workoutSession) return;
+    setAddingExercise(true);
+    try {
+      const planExercise = await addAdhocExercise(workoutSession.id, ex.id);
+      setExercises((prev) => [...prev, planExercise]);
+      setExpandedExerciseId(planExercise.id);
+      setAddExerciseOpen(false);
+    } catch {
+      toast.error("Failed to add exercise");
+    } finally {
+      setAddingExercise(false);
+    }
   }
 
   async function handleFinish() {
@@ -490,7 +510,23 @@ export default function ActiveWorkoutPage() {
               />
             </motion.div>
           ))}
+
+        <button
+          type="button"
+          onClick={() => setAddExerciseOpen(true)}
+          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+        >
+          <Plus className="size-4" />
+          Add exercise
+        </button>
       </div>
+
+      <AddExerciseSheet
+        open={addExerciseOpen}
+        busy={addingExercise}
+        onClose={() => setAddExerciseOpen(false)}
+        onPick={handleAddExercise}
+      />
 
       <AnimatePresence>
         {restVisible && (
