@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, Zap, Calendar } from "lucide-react";
+import { Flame, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface StatItemProps {
@@ -30,13 +30,14 @@ function StatItem({ label, value, icon: Icon, delay = 0 }: StatItemProps) {
 interface StatsRowProps {
   streak: number;
   weeklyVolume: number;
-  monthlyWorkouts: number;
+  weightUnits: "kg" | "lbs";
 }
 
-export function StatsRow({ streak, weeklyVolume, monthlyWorkouts }: StatsRowProps) {
-  const formatVolume = (kg: number) => {
-    if (kg >= 1000) return `${(kg / 1000).toFixed(1)}t`;
-    return `${kg}kg`;
+export function StatsRow({ streak, weeklyVolume, weightUnits }: StatsRowProps) {
+  const formatVolume = (value: number) => {
+    // Tonnes only make sense as a kg-based shorthand — lbs users just see the raw number.
+    if (weightUnits === "kg" && value >= 1000) return `${(value / 1000).toFixed(1)}t`;
+    return `${Math.round(value)}${weightUnits}`;
   };
 
   return (
@@ -52,12 +53,6 @@ export function StatsRow({ streak, weeklyVolume, monthlyWorkouts }: StatsRowProp
         value={formatVolume(weeklyVolume)}
         icon={Zap}
         delay={0.15}
-      />
-      <StatItem
-        label="This month"
-        value={`${monthlyWorkouts}`}
-        icon={Calendar}
-        delay={0.2}
       />
     </div>
   );
