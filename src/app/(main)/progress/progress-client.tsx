@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { TrendingUp, Dumbbell, Clock, Target, Loader2 } from "lucide-react";
@@ -9,10 +10,10 @@ import { LineChart, BarChart } from "@/components/progress/mini-chart";
 import { BodyTab } from "@/components/weight/body-tab";
 import {
   overviewStats,
-  weeklyVolumeData,
   benchPressProgress,
   squatProgress,
 } from "@/lib/data/progress";
+import { fetchProgressOverview, type ProgressOverview } from "@/lib/api/workout";
 
 // Code-split out the body-muscles SVG library (only needed once the Volume
 // tab is actually opened) instead of shipping it in the initial /progress bundle.
@@ -64,16 +65,45 @@ interface Props {
   defaultTab: string;
 }
 
+function formatWeekLabel(weekStart: string) {
+  return new Date(`${weekStart}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatSignedPct(pct: number | null) {
+  if (pct == null) return null;
+  const rounded = Math.round(pct);
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
+}
+
 export function ProgressPageClient({ defaultTab }: Props) {
+  const [overview, setOverview] = useState<ProgressOverview | null>(null);
+
+  useEffect(() => {
+    fetchProgressOverview()
+      .then(setOverview)
+      .catch(() => {});
+  }, []);
+
   const benchData = benchPressProgress.map((d) => ({ label: d.date, value: d.weight }));
   const squatData = squatProgress.map((d) => ({ label: d.date, value: d.weight }));
-  const volumeData = weeklyVolumeData.map((d) => ({ label: d.week, value: d.volume }));
+  const volumeData =
+    overview?.weekly_volume_series.map((d) => ({
+      label: formatWeekLabel(d.week_start),
+      value: d.volume,
+    })) ?? [];
 
   const formatVolume = (v: number) => {
     if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
     if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
     return `${v}`;
   };
+  const units = overview?.weight_units ?? "kg";
+  const thisWeekVolume = overview?.weekly_volume_series.at(-1)?.volume ?? 0;
+  const weekOverWeekLabel = formatSignedPct(overview?.week_over_week_change_pct ?? null);
+  const growthRateLabel = formatSignedPct(overview?.growth_rate_pct ?? null);
 
   return (
     <div className="flex flex-col px-4 pt-4">
@@ -93,20 +123,24 @@ export function ProgressPageClient({ defaultTab }: Props) {
             <div className="grid grid-cols-3 gap-3">
               <StatCard
                 label="Total volume"
-                value={`${formatVolume(overviewStats.totalVolume)}kg`}
+                value={overview ? `${formatVolume(overview.total_volume)}${units}` : "—"}
                 icon={Dumbbell}
                 delay={0.05}
               />
               <StatCard
                 label="Workouts"
-                value={`${overviewStats.totalWorkouts}`}
+                value={overview ? `${overview.total_workouts}` : "—"}
                 sub="total sessions"
                 icon={TrendingUp}
                 delay={0.1}
               />
               <StatCard
                 label="Avg duration"
-                value={`${overviewStats.avgDuration}m`}
+                value={
+                  overview?.avg_duration_seconds != null
+                    ? `${Math.round(overview.avg_duration_seconds / 60)}m`
+                    : "—"
+                }
                 sub="per session"
                 icon={Clock}
                 delay={0.15}
@@ -143,13 +177,25 @@ export function ProgressPageClient({ defaultTab }: Props) {
                 <h3 className="text-sm font-bold text-foreground">Weekly Volume</h3>
                 <span className="text-xs text-muted-foreground">Last 8 weeks</span>
               </div>
-              <div className="flex items-end gap-2 mb-3">
-                <span className="text-2xl font-black text-foreground tabular-nums">24.8t</span>
-                <span className="text-xs font-medium text-primary bg-primary/10 rounded-md px-1.5 py-0.5 mb-0.5">
-                  +8% this week
-                </span>
-              </div>
-              <BarChart data={volumeData} height={80} />
+              {overview ? (
+                <>
+                  <div className="flex items-end gap-2 mb-3">
+                    <span className="text-2xl font-black text-foreground tabular-nums">
+                      {formatVolume(thisWeekVolume)}{units}
+                    </span>
+                    {weekOverWeekLabel && (
+                      <span className="text-xs font-medium text-primary bg-primary/10 rounded-md px-1.5 py-0.5 mb-0.5">
+                        {weekOverWeekLabel} this week
+                      </span>
+                    )}
+                  </div>
+                  <BarChart data={volumeData} height={80} />
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[80px]">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </motion.div>
 
             <motion.div
@@ -223,13 +269,23 @@ export function ProgressPageClient({ defaultTab }: Props) {
               className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
             >
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold text-foreground">Weekly Volume (kg)</h3>
+                <h3 className="text-sm font-bold text-foreground">Weekly Volume ({units})</h3>
               </div>
-              <div className="flex items-end gap-2 mb-3">
-                <span className="text-2xl font-black text-foreground tabular-nums">24,800</span>
-                <span className="text-sm text-muted-foreground mb-0.5">kg this week</span>
-              </div>
-              <BarChart data={volumeData} height={100} />
+              {overview ? (
+                <>
+                  <div className="flex items-end gap-2 mb-3">
+                    <span className="text-2xl font-black text-foreground tabular-nums">
+                      {thisWeekVolume.toLocaleString()}
+                    </span>
+                    <span className="text-sm text-muted-foreground mb-0.5">{units} this week</span>
+                  </div>
+                  <BarChart data={volumeData} height={100} />
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[100px]">
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
             </motion.div>
 
             <motion.div
@@ -239,10 +295,26 @@ export function ProgressPageClient({ defaultTab }: Props) {
               className="grid grid-cols-2 gap-3"
             >
               {[
-                { label: "Best week", value: "24,800kg", sub: "This week" },
-                { label: "Avg/week", value: "21,863kg", sub: "8-week avg" },
-                { label: "Total lifted", value: "1.25M kg", sub: "All time" },
-                { label: "Growth rate", value: "+36%", sub: "vs 3 months ago" },
+                {
+                  label: "Best week",
+                  value: overview ? `${formatVolume(overview.best_week_volume)}${units}` : "—",
+                  sub: "Last 8 weeks",
+                },
+                {
+                  label: "Avg/week",
+                  value: overview ? `${formatVolume(overview.avg_week_volume)}${units}` : "—",
+                  sub: "8-week avg",
+                },
+                {
+                  label: "Total lifted",
+                  value: overview ? `${formatVolume(overview.total_volume)}${units}` : "—",
+                  sub: "All time",
+                },
+                {
+                  label: "Growth rate",
+                  value: growthRateLabel ?? "—",
+                  sub: "vs ~3 months ago",
+                },
               ].map((stat) => (
                 <div
                   key={stat.label}
