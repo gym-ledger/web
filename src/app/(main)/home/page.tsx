@@ -9,7 +9,6 @@ import { HomeworkWidget } from "@/components/home/homework-widget";
 import { StatsRow } from "@/components/home/stats-row";
 import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
 import { currentUser, weeklyConsistency } from "@/lib/data/user";
-import { todayWorkout } from "@/lib/data/workouts";
 import { recentPRs } from "@/lib/data/progress";
 import { cn } from "@/lib/utils";
 
@@ -52,11 +51,7 @@ export default function HomePage() {
         <HomeworkWidget />
 
         {/* Today's workout */}
-        <TodayCard
-          programName={todayWorkout.programName}
-          dayName={todayWorkout.dayName}
-          exercises={todayWorkout.exercises}
-        />
+        <TodayCard />
 
         {/* Stats row */}
         <div>

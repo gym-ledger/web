@@ -360,6 +360,7 @@ export async function fetchExerciseHistory(
 
 export interface WorkoutSessionListItem {
   id: string;
+  program_assignment_id: string;
   started_at: string;
   completed_at: string | null;
   plan_name: string;
