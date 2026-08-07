@@ -6,45 +6,91 @@ import type { MuscleSignal } from "@/lib/api/muscleSignals";
  * (sets aren't logged per-side) and no guarantee its slugs match
  * `body-muscles`' own vocabulary. Rather than a brittle exact-slug
  * dictionary, match by keyword against `slug + " " + name` — see
- * PLAN_muscle_visualization.md §4 for the reasoning and the "unverified
- * real muscle data" risk this is hedging against.
+ * PLAN_muscle_visualization.md §4/§9 for the full reasoning.
  *
- * Ordered — first match wins. Within each anatomical group, **specific
- * sub-part rules come before the generic/parent rule for that same group**
- * (e.g. "Upper Abs" before generic "Abs"). This matters: if a rule for a
- * generic parent muscle (e.g. "Abs") mapped to the *same* library ids as a
- * more specific child muscle (e.g. "Upper Abs"), both would collide on the
- * same region and whichever muscle currently has the higher signal value
- * would silently win every tap/highlight for that region — even in the
- * *other* muscle's rightful area. This was a confirmed real bug (verified
- * by rendering the library's actual SVG geometry, not just its id names —
- * see the id→name→bbox audit that produced this rewrite): a generic
- * "ab"/"core" rule mapped to *all four* abs ids, and a generic "calf"
- * rule mapped to *all six* calf ids, so a specific "Gastrocnemius" muscle
- * with real data would out-rank a generic "Calves" muscle for every calf
- * tap, and "Upper Abs"/"Lower Abs" could each bleed into the other's
- * region. The generic rule for each group is now a *fallback only* for
- * when the admin has a single undivided muscle (e.g. just "Abs", no
- * separate upper/lower) — it comes last within its group precisely so a
- * more specific sibling always wins when both exist.
+ * Ordered — first match wins. Two collision classes were found and fixed by
+ * checking real production muscle data (see §9 in the plan doc):
+ *
+ * 1. **Specific-before-generic within a group.** A generic parent rule (e.g.
+ *    one "ab"/"core" rule mapping to all four `abs-*` ids) collides with a
+ *    more specific child muscle ("Upper Abs") when both exist — whichever
+ *    has the higher signal silently wins the *other* muscle's region too.
+ *    Every group with real sub-parts (abs, calves, chest, delts, traps,
+ *    glutes, forearms, lower-back, triceps) lists specific rules first, with
+ *    the parent/generic rule last as a fallback for when a taxonomy doesn't
+ *    split that group.
+ * 2. **Bare keyword false positives across groups.** Short generic keywords
+ *    collide with *anatomical* names that happen to contain them as a
+ *    substring, not just "this same group but less specific": real examples
+ *    that broke — "**Biceps Femoris**" (a hamstring head) was caught by the
+ *    "bicep" rule meant for the arm muscle; "**Vastus Lateralis**" (a quad
+ *    head) was caught by the "lat" rule meant for lats, since "lateralis"
+ *    contains "lat"; "**Neck Extensors**" was caught by the bare "extensor"
+ *    keyword meant only for forearm extensors. Fix: anatomically-specific
+ *    multi-word names (vastus/rectus femoris, biceps femoris, semitendinosus,
+ *    etc.) get their own rules ordered before any single short keyword that
+ *    could otherwise swallow them, and bare single-word keywords that proved
+ *    collision-prone ("extensor", "flexor") were scoped to require their
+ *    group's qualifying word ("forearm extensor").
  *
  * The final "back" rule is an unrelated generic catch-all kept last overall
  * so all specific rules above it take priority.
  */
 const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
+  // Hamstrings — checked before "bicep" so "Biceps Femoris" (a hamstring
+  // head) doesn't get caught by the arm-biceps rule below.
+  { keywords: ["biceps femoris"], libraryIds: ["hamstrings-lateral-left", "hamstrings-lateral-right"] },
+  {
+    keywords: ["semitendinosus", "semimembranosus"],
+    libraryIds: ["hamstrings-medial-left", "hamstrings-medial-right"],
+  },
+  {
+    keywords: ["hamstring"],
+    libraryIds: ["hamstrings-lateral-left", "hamstrings-lateral-right", "hamstrings-medial-left", "hamstrings-medial-right"],
+  },
+
+  // Quads — checked before "lat" so "Vastus Lateralis" doesn't get caught
+  // by the lats rule below (it contains "lat" as a substring of "lateralis").
+  {
+    keywords: ["rectus femoris", "vastus lateralis", "vastus medialis", "vastus intermedius"],
+    libraryIds: ["quads-left", "quads-right"],
+  },
+  { keywords: ["quad"], libraryIds: ["quads-left", "quads-right"] },
+
+  // Biceps (arm) — "brachialis" is a distinct elbow flexor with no library
+  // id of its own; closest visual proxy is the biceps region.
+  { keywords: ["brachialis"], libraryIds: ["biceps-left", "biceps-right"] },
   { keywords: ["bicep"], libraryIds: ["biceps-left", "biceps-right"] },
+
+  // Triceps — head-specific before the generic bucket.
+  {
+    keywords: ["long head tricep", "triceps long head"],
+    libraryIds: ["triceps-long-left", "triceps-long-right"],
+  },
+  {
+    keywords: ["lateral head tricep", "triceps lateral head"],
+    libraryIds: ["triceps-lateral-left", "triceps-lateral-right"],
+  },
+  {
+    // No library id for the medial head specifically — falls back to both.
+    keywords: ["medial head tricep", "triceps medial head"],
+    libraryIds: ["triceps-lateral-left", "triceps-lateral-right", "triceps-long-left", "triceps-long-right"],
+  },
   {
     keywords: ["tricep"],
     libraryIds: ["triceps-lateral-left", "triceps-lateral-right", "triceps-long-left", "triceps-long-right"],
   },
 
-  // Forearms — flexors/extensors before the generic bucket.
+  // Forearms — flexors/extensors/brachioradialis before the generic bucket.
+  // "extensor"/"flexor" alone are deliberately NOT used as keywords here —
+  // "Neck Extensors" collided with a bare "extensor" keyword in production.
+  { keywords: ["brachioradialis"], libraryIds: ["forearm-left", "forearm-right"] },
   {
-    keywords: ["forearm flexor", "flexor"],
+    keywords: ["forearm flexor"],
     libraryIds: ["forearm-flexors-left", "forearm-flexors-right"],
   },
   {
-    keywords: ["forearm extensor", "extensor"],
+    keywords: ["forearm extensor"],
     libraryIds: ["forearm-extensors-left", "forearm-extensors-right"],
   },
   {
@@ -86,7 +132,10 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     ],
   },
 
-  // Traps — upper/mid/lower before the generic bucket.
+  // Traps — upper/mid/lower before the generic bucket. "Rhomboids" and
+  // "Teres Major" have no dedicated library id; closest visual proxies are
+  // mid-traps and lats respectively.
+  { keywords: ["rhomboid"], libraryIds: ["traps-mid-left", "traps-mid-right"] },
   {
     keywords: ["upper trap"],
     libraryIds: ["traps-upper-left", "traps-upper-right"],
@@ -104,6 +153,11 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     libraryIds: ["traps-upper-left", "traps-upper-right", "traps-mid-left", "traps-mid-right", "traps-lower-left", "traps-lower-right"],
   },
 
+  { keywords: ["teres major"], libraryIds: ["lats-upper-left", "lats-upper-right"] },
+  {
+    keywords: ["upper back"],
+    libraryIds: ["lats-upper-left", "lats-upper-right", "traps-upper-left", "traps-upper-right"],
+  },
   {
     keywords: ["lat"],
     libraryIds: ["lats-upper-left", "lats-upper-right", "lats-mid-left", "lats-mid-right", "lats-lower-left", "lats-lower-right"],
@@ -123,10 +177,10 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     libraryIds: ["lower-back-erectors-left", "lower-back-erectors-right", "lower-back-ql-left", "lower-back-ql-right"],
   },
 
-  { keywords: ["oblique"], libraryIds: ["obliques-left", "obliques-right"] },
+  { keywords: ["upper ab"], libraryIds: ["obliques-left", "obliques-right"] },
 
-  // Chest — upper/lower before the generic bucket. Very commonly split
-  // ("Upper Chest" / incline vs "Lower Chest" / decline).
+  // Chest — upper/lower before the generic bucket. "Mid Chest" has no
+  // dedicated region — falls back to the full chest bucket.
   {
     keywords: ["upper chest", "upper pec", "clavicular"],
     libraryIds: ["chest-upper-left", "chest-upper-right"],
@@ -140,9 +194,9 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     libraryIds: ["chest-upper-left", "chest-upper-right", "chest-lower-left", "chest-lower-right"],
   },
 
-  // Abs — upper/lower before the generic bucket. Confirmed bug source:
-  // a single "ab"/"core" rule previously mapped to all four ids, so
-  // "Upper Abs" and "Lower Abs" (if both exist) would collide.
+  // Abs — upper/lower before the generic bucket. "Transverse Abdominis" is
+  // a deep stabilizer with no dedicated region — falls back to the full
+  // abs bucket, same as generic "Core".
   {
     keywords: ["lower ab"],
     libraryIds: ["abs-lower-left", "abs-lower-right"],
@@ -152,24 +206,19 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     libraryIds: ["abs-upper-left", "abs-upper-right"],
   },
   {
-    keywords: ["ab", "core", "rectus abdomin"],
+    keywords: ["ab", "core", "rectus abdomin", "transverse abdomin"],
     libraryIds: ["abs-upper-left", "abs-upper-right", "abs-lower-left", "abs-lower-right"],
   },
 
-  { keywords: ["quad"], libraryIds: ["quads-left", "quads-right"] },
-  {
-    keywords: ["hamstring"],
-    libraryIds: ["hamstrings-lateral-left", "hamstrings-lateral-right", "hamstrings-medial-left", "hamstrings-medial-right"],
-  },
-
-  // Glutes — max/med before the generic bucket. Commonly split ("Glute
-  // Max" vs "Glute Med", e.g. for hip-abduction-focused work).
+  // Glutes — max/med/min before the generic bucket. "Glute Minimus" has no
+  // dedicated region — closest visual proxy is glute medius (minimus sits
+  // deep to it, same area).
   {
     keywords: ["glute max", "gluteus maximus"],
     libraryIds: ["gluteus-maximus-left", "gluteus-maximus-right"],
   },
   {
-    keywords: ["glute med", "gluteus medius"],
+    keywords: ["glute med", "gluteus medius", "glute min", "gluteus minimus"],
     libraryIds: ["gluteus-medius-left", "gluteus-medius-right"],
   },
   {
@@ -177,10 +226,7 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     libraryIds: ["gluteus-maximus-left", "gluteus-maximus-right", "gluteus-medius-left", "gluteus-medius-right"],
   },
 
-  // Calves — gastrocnemius/soleus before the generic bucket. Confirmed bug
-  // source (user-reported): a single rule mapped "calf"/"gastroc"/"soleus"
-  // all to the same six ids, so a specific "Gastrocnemius" muscle with real
-  // data always out-ranked a generic "Calves" muscle for every tap.
+  // Calves — gastrocnemius/soleus before the generic bucket.
   {
     keywords: ["gastrocnemius", "gastroc"],
     libraryIds: ["calves-gastroc-lateral-left", "calves-gastroc-lateral-right", "calves-gastroc-medial-left", "calves-gastroc-medial-right"],
@@ -201,11 +247,18 @@ const MUSCLE_KEYWORD_RULES: { keywords: string[]; libraryIds: MuscleId[] }[] = [
     ],
   },
 
-  { keywords: ["adductor", "inner thigh"], libraryIds: ["adductors-left", "adductors-right"] },
-  { keywords: ["hip flexor", "hip-flexor"], libraryIds: ["hip-flexor-left", "hip-flexor-right"] },
+  { keywords: ["adductors", "inner thigh"], libraryIds: ["adductors-left", "adductors-right"] },
+  { keywords: ["hip flexors", "hip-flexors"], libraryIds: ["hip-flexor-left", "hip-flexor-right"] },
   { keywords: ["tibialis", "shin"], libraryIds: ["tibialis-anterior-left", "tibialis-anterior-right"] },
   { keywords: ["serratus"], libraryIds: ["serratus-anterior-left", "serratus-anterior-right"] },
+
+  // Neck — front (SCM) vs back (extensors) before the generic bucket. The
+  // library actually has separate front/back neck regions, so this is
+  // precise, not a fallback.
+  { keywords: ["sternocleidomastoid"], libraryIds: ["neck-left", "neck-right"] },
+  { keywords: ["neck extensor"], libraryIds: ["nape"] },
   { keywords: ["neck"], libraryIds: ["neck-left", "neck-right", "nape"] },
+
   { keywords: ["spine"], libraryIds: ["spine"] },
   {
     keywords: ["back"],

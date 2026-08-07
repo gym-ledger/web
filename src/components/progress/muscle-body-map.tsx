@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { BodyChart, ViewSide, INTENSITY_COLORS, type BodyState, type MuscleId } from "body-muscles";
 import { fetchMuscleSignals, type MuscleSignal } from "@/lib/api/muscleSignals";
 import { buildBodyState, findPercentForLibraryId, type SignalMode } from "@/lib/muscle-body-map-adapter";
+import "@/lib/muscle-body-map-labels";
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
