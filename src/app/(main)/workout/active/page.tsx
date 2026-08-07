@@ -134,6 +134,10 @@ export default function ActiveWorkoutPage() {
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
 
   const [elapsed, setElapsed] = useState(0);
+  // ISO timestamp of the most recently logged set (any exercise), or null
+  // until the first set of the session. Drives the "since last set" counter.
+  const [lastSetAt, setLastSetAt] = useState<string | null>(null);
+  const [sinceLastSet, setSinceLastSet] = useState(0);
   const [restVisible, setRestVisible] = useState(false);
   const [restDuration, setRestDuration] = useState(90);
   // Bumped on every logged set so RestTimer always remounts (fresh countdown)
@@ -177,6 +181,12 @@ export default function ActiveWorkoutPage() {
           (grouped[s.workout_program_exercise_id] ??= []).push(s);
         }
         setSetsByExercise(grouped);
+        if (existingSets.length > 0) {
+          const latest = existingSets.reduce((max, s) =>
+            new Date(s.created_at) > new Date(max.created_at) ? s : max,
+          );
+          setLastSetAt(latest.created_at);
+        }
         setStep("active");
       } catch {
         setStep("error");
@@ -278,7 +288,10 @@ export default function ActiveWorkoutPage() {
   // Elapsed timer while a workout is active — computed from the session's
   // real `started_at` rather than counting up from 0, so a resumed workout
   // (reload, or coming back from another screen) shows correct elapsed time
-  // immediately instead of restarting.
+  // immediately instead of restarting. A visibilitychange listener forces an
+  // immediate recompute the moment the app returns to the foreground
+  // (locking the phone / switching apps can throttle or pause setInterval
+  // entirely), instead of waiting for the next scheduled tick.
   useEffect(() => {
     if (step !== "active" || !workoutSession) return;
     const startedAtMs = new Date(workoutSession.started_at).getTime();
@@ -287,8 +300,37 @@ export default function ActiveWorkoutPage() {
     }
     tick();
     const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    function handleVisibility() {
+      if (document.visibilityState === "visible") tick();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [step, workoutSession]);
+
+  // "Since last set" — same real-timestamp-based approach as the elapsed
+  // timer above, so it's equally unaffected by backgrounding. Not rendered
+  // at all until `lastSetAt` is set (i.e. at least one set logged this
+  // session, including ones from before a reload/resume).
+  useEffect(() => {
+    if (step !== "active" || !lastSetAt) return;
+    const lastSetAtMs = new Date(lastSetAt).getTime();
+    function tick() {
+      setSinceLastSet(Math.max(0, Math.floor((Date.now() - lastSetAtMs) / 1000)));
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    function handleVisibility() {
+      if (document.visibilityState === "visible") tick();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [step, lastSetAt]);
 
   const totalSetsLogged = Object.values(setsByExercise).reduce(
     (total, sets) => total + sets.length,
@@ -309,6 +351,8 @@ export default function ActiveWorkoutPage() {
       ...prev,
       [exerciseId]: [...(prev[exerciseId] ?? []), set, ...dropSets],
     }));
+    const latest = dropSets.reduce((max, s) => (new Date(s.created_at) > new Date(max.created_at) ? s : max), set);
+    setLastSetAt(latest.created_at);
     setRestDuration(restSeconds);
     setRestVisible(true);
     setRestKey((k) => k + 1);
@@ -435,6 +479,17 @@ export default function ActiveWorkoutPage() {
               {day?.name}
             </h1>
           </div>
+
+          {lastSetAt && (
+            <div className="flex flex-col items-center">
+              <span className="text-sm font-bold tabular-nums text-muted-foreground">
+                {formatDuration(sinceLastSet)}
+              </span>
+              <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider whitespace-nowrap">
+                since last set
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-col items-center">
             <span className="text-xl font-black tabular-nums text-foreground">

@@ -34,20 +34,37 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
     onFinishRef.current = onFinish;
   }, [onFinish]);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(id);
-          onFinishRef.current();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  // Fixed end-timestamp computed once at mount, not a per-tick decrement —
+  // so backgrounding the tab/locking the phone (which throttles or pauses
+  // setInterval) can't leave this showing stale time. Every tick recomputes
+  // from the real clock, and a visibilitychange listener forces an
+  // immediate recompute the moment the app comes back to the foreground
+  // instead of waiting for the next scheduled tick.
+  // Lazy initializer (not a plain `useRef(Date.now() + ...)`) so the impure
+  // `Date.now()` call runs only once, during initialization, not on every render.
+  const [endAtMs] = useState(() => Date.now() + initialSeconds * 1000);
 
-    return () => clearInterval(id);
-  }, []);
+  useEffect(() => {
+    let firedFinish = false;
+    function tick() {
+      const secsLeft = Math.max(0, Math.round((endAtMs - Date.now()) / 1000));
+      setRemaining(secsLeft);
+      if (secsLeft <= 0 && !firedFinish) {
+        firedFinish = true;
+        onFinishRef.current();
+      }
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    function handleVisibility() {
+      if (document.visibilityState === "visible") tick();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [endAtMs]);
 
   const progress = 1 - remaining / initialSeconds;
   const circumference = 2 * Math.PI * 20;
