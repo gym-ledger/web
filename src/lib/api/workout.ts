@@ -566,6 +566,10 @@ export interface ProgressOverview {
   avg_week_volume: number;
   /** Last 4 weeks vs. the 4 weeks from ~9-12 weeks back. */
   growth_rate_pct: number | null;
+  /** Full completed weeks since the earliest active plan's start where every required day was trained. */
+  consistent_weeks: number;
+  /** Full completed weeks since the earliest active plan's start (denominator for consistent_weeks). */
+  total_tracked_weeks: number;
 }
 
 export async function fetchProgressOverview(): Promise<ProgressOverview> {

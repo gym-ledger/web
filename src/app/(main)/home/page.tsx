@@ -95,7 +95,7 @@ export default function HomePage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-foreground">Recent PRs</h2>
-              <Link href="/progress" className="text-xs text-primary flex items-center gap-0.5">
+              <Link href="/progress?tab=strength" className="text-xs text-primary flex items-center gap-0.5">
                 See all <ChevronRight className="size-3" />
               </Link>
             </div>

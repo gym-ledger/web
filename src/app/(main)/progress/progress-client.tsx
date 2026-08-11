@@ -1,19 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
-import { TrendingUp, Dumbbell, Clock, Target, Loader2 } from "lucide-react";
+import { TrendingUp, Dumbbell, Clock, Target, Trophy, Search, X, Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
 import { LineChart, BarChart } from "@/components/progress/mini-chart";
 import { BodyTab } from "@/components/weight/body-tab";
+import { groupSetsWithDropsets } from "@/lib/workout-sets";
 import {
-  overviewStats,
-  benchPressProgress,
-  squatProgress,
-} from "@/lib/data/progress";
-import { fetchProgressOverview, type ProgressOverview } from "@/lib/api/workout";
+  fetchProgressOverview,
+  fetchRecentPRs,
+  fetchExerciseHistory,
+  type ProgressOverview,
+  type PersonalRecord,
+  type ExerciseHistorySession,
+} from "@/lib/api/workout";
+
+const ALL_PRS_LIMIT = 300;
 
 // Code-split out the body-muscles SVG library (only needed once the Volume
 // tab is actually opened) instead of shipping it in the initial /progress bundle.
@@ -78,17 +85,86 @@ function formatSignedPct(pct: number | null) {
   return `${rounded >= 0 ? "+" : ""}${rounded}%`;
 }
 
+function formatShortDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/** Overview tab's single spotlight card: whichever exercise the user most recently set a PR in. */
+function LatestPrCard({ pr, units }: { pr: PersonalRecord; units: "kg" | "lbs" }) {
+  const [history, setHistory] = useState<ExerciseHistorySession[] | null>(null);
+
+  useEffect(() => {
+    fetchExerciseHistory(pr.exercise_id, 12)
+      .then(setHistory)
+      .catch(() => setHistory([]));
+  }, [pr.exercise_id]);
+
+  const chartData = (history ? [...history].reverse() : [])
+    .map((session) => {
+      const mains = groupSetsWithDropsets(session.sets).map((g) => g.main);
+      const maxLoad = mains.reduce((m, s) => Math.max(m, (s.weight ?? 0) + (s.tool_weight ?? 0)), 0);
+      return { label: formatShortDate(session.started_at), value: maxLoad };
+    })
+    .filter((d) => d.value > 0);
+
+  const delta =
+    chartData.length >= 2 ? chartData[chartData.length - 1].value - chartData[0].value : null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-bold text-foreground truncate">{pr.exercise_name}</h3>
+        <span className="text-xs text-primary font-medium">Latest PR</span>
+      </div>
+      <div className="flex items-end gap-2 mb-3">
+        <span className="text-2xl font-black text-foreground tabular-nums">{pr.load}</span>
+        <span className="text-sm text-muted-foreground mb-0.5">
+          {units} × {pr.reps}
+        </span>
+        {delta != null && delta > 0 && (
+          <span className="text-xs font-medium text-primary bg-primary/10 rounded-md px-1.5 py-0.5 mb-0.5">
+            +{Math.round(delta * 10) / 10}
+            {units}
+          </span>
+        )}
+      </div>
+      {chartData.length >= 2 ? (
+        <LineChart data={chartData} height={90} />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Achieved {formatShortDate(pr.achieved_at)} — log it again to start a trend line
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
 export function ProgressPageClient({ defaultTab }: Props) {
   const [overview, setOverview] = useState<ProgressOverview | null>(null);
+  const [prs, setPrs] = useState<PersonalRecord[] | null>(null);
+  const [prSearch, setPrSearch] = useState("");
 
   useEffect(() => {
     fetchProgressOverview()
       .then(setOverview)
       .catch(() => {});
+    fetchRecentPRs(ALL_PRS_LIMIT)
+      .then(setPrs)
+      .catch(() => {});
   }, []);
 
-  const benchData = benchPressProgress.map((d) => ({ label: d.date, value: d.weight }));
-  const squatData = squatProgress.map((d) => ({ label: d.date, value: d.weight }));
+  const filteredPrs = useMemo(() => {
+    if (!prs) return null;
+    const q = prSearch.trim().toLowerCase();
+    if (!q) return prs;
+    return prs.filter((pr) => pr.exercise_name.toLowerCase().includes(q));
+  }, [prs, prSearch]);
+
   const volumeData =
     overview?.weekly_volume_series.map((d) => ({
       label: formatWeekLabel(d.week_start),
@@ -147,25 +223,7 @@ export function ProgressPageClient({ defaultTab }: Props) {
               />
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
-            >
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-sm font-bold text-foreground">Bench Press</h3>
-                <span className="text-xs text-muted-foreground">Last 12 weeks</span>
-              </div>
-              <div className="flex items-end gap-2 mb-3">
-                <span className="text-2xl font-black text-foreground tabular-nums">92.5</span>
-                <span className="text-sm text-muted-foreground mb-0.5">kg</span>
-                <span className="text-xs font-medium text-primary bg-primary/10 rounded-md px-1.5 py-0.5 mb-0.5">
-                  +17.5kg
-                </span>
-              </div>
-              <LineChart data={benchData} height={90} />
-            </motion.div>
+            {prs && prs.length > 0 && <LatestPrCard pr={prs[0]} units={units} />}
 
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -209,13 +267,14 @@ export function ProgressPageClient({ defaultTab }: Props) {
               </div>
               <div>
                 <p className="text-base font-bold text-foreground">
-                  {overviewStats.consistencyWeeks}/{overviewStats.consistencyTotal} weeks consistent
+                  {overview
+                    ? `${overview.consistent_weeks}/${overview.total_tracked_weeks} weeks consistent`
+                    : "—"}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {Math.round(
-                    (overviewStats.consistencyWeeks / overviewStats.consistencyTotal) * 100
-                  )}
-                  % consistency rate · Keep it up!
+                  {overview && overview.total_tracked_weeks > 0
+                    ? `${Math.round((overview.consistent_weeks / overview.total_tracked_weeks) * 100)}% consistency rate · Keep it up!`
+                    : "Since your plan's start date — one full week at a time"}
                 </p>
               </div>
             </motion.div>
@@ -225,33 +284,66 @@ export function ProgressPageClient({ defaultTab }: Props) {
         {/* Strength */}
         <TabsContent value="strength">
           <div className="flex flex-col gap-4">
-            {[
-              { name: "Bench Press", data: benchData, current: 92.5, change: "+17.5", unit: "kg" },
-              { name: "Squat", data: squatData, current: 120, change: "+25", unit: "kg" },
-            ].map((lift, i) => (
-              <motion.div
-                key={lift.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-sm font-bold text-foreground">{lift.name}</h3>
-                  <span className="text-xs text-muted-foreground">12 weeks</span>
-                </div>
-                <div className="flex items-end gap-2 mb-3">
-                  <span className="text-2xl font-black text-foreground tabular-nums">
-                    {lift.current}
-                  </span>
-                  <span className="text-sm text-muted-foreground mb-0.5">{lift.unit}</span>
-                  <span className="text-xs font-medium text-primary bg-primary/10 rounded-md px-1.5 py-0.5 mb-0.5">
-                    {lift.change}kg
-                  </span>
-                </div>
-                <LineChart data={lift.data} height={80} />
-              </motion.div>
-            ))}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search exercises..."
+                value={prSearch}
+                onChange={(e) => setPrSearch(e.target.value)}
+                className="h-11 rounded-xl pl-9 pr-9 text-base"
+              />
+              {prSearch && (
+                <button
+                  type="button"
+                  onClick={() => setPrSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex size-5 items-center justify-center rounded-full bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            {!filteredPrs ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredPrs.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <Trophy className="size-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  {prSearch
+                    ? `No PRs matching "${prSearch}"`
+                    : "No PRs yet — log a workout to set your first one."}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {filteredPrs.map((pr, i) => (
+                  <Link key={pr.exercise_id} href={`/exercises/${pr.exercise_id}`}>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.15, delay: Math.min(i * 0.02, 0.3) }}
+                      className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all"
+                    >
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                        <Trophy className="size-4.5 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">
+                          {pr.exercise_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {pr.load}
+                          {units} × {pr.reps} reps · {formatShortDate(pr.achieved_at)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
 
