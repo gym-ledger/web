@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil, Flame } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil, Flame, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   fetchExerciseHistory,
@@ -71,6 +71,36 @@ function formatLoad(weight: number | null, toolWeight: number | null) {
   return `${weight ?? 0}kg`;
 }
 
+// Grows with content (Enter for new lines) instead of scrolling internally —
+// effort/discomfort notes are sometimes multiple sentences long.
+function AutoResizeTextarea({
+  className,
+  value,
+  ...props
+}: ComponentProps<"textarea">) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      rows={1}
+      className={cn(
+        "min-h-9 w-full resize-none overflow-hidden rounded-lg border border-input bg-input/25 px-3 py-2 text-sm leading-snug outline-none focus:ring-1 focus:ring-primary/40",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 interface ExerciseLogCardProps {
   exercise: PlanExercise;
   workoutSessionId: string;
@@ -96,6 +126,9 @@ export function ExerciseLogCard({
   const [effort, setEffort] = useState("");
   const [discomfort, setDiscomfort] = useState("");
   const [alarm, setAlarm] = useState("");
+  // Alarm input is rare (~once every 20-30 sets) — kept collapsed behind a
+  // button so the everyday logging form isn't cluttered with it.
+  const [showAlarmInput, setShowAlarmInput] = useState(false);
   const [isWarmup, setIsWarmup] = useState(false);
   const [dropSets, setDropSets] = useState<DropSetRow[]>([]);
   // Sets logged optimistically (offline-first) that haven't been confirmed by
@@ -264,6 +297,7 @@ export function ExerciseLogCard({
       setEffort(s.effort ?? "");
       setDiscomfort(s.discomfort_notes ?? "");
       setAlarm(s.alarm_message ?? "");
+      setShowAlarmInput(!!s.alarm_message);
       setDropSets(dropSetRowsFromHistory(lastMatchingGroup.drops));
       return;
     }
@@ -276,6 +310,7 @@ export function ExerciseLogCard({
       setEffort(s.effort ?? "");
       setDiscomfort(s.discomfort_notes ?? "");
       setAlarm("");
+      setShowAlarmInput(false);
       setDropSets(dropSetRowsFromWorkoutSets(currentLatestGroup.drops));
     }
   }
@@ -292,6 +327,7 @@ export function ExerciseLogCard({
     setEffort("");
     setDiscomfort("");
     setAlarm("");
+    setShowAlarmInput(false);
     setIsWarmup(false);
     setDropSets([]);
   }
@@ -452,6 +488,7 @@ export function ExerciseLogCard({
     setEffort("");
     setDiscomfort("");
     setAlarm("");
+    setShowAlarmInput(false);
     setIsWarmup(false);
     setDropSets([]);
 
@@ -521,19 +558,17 @@ export function ExerciseLogCard({
             className="h-8 rounded-lg border border-input bg-input/25 px-2 text-center text-xs tabular-nums outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
-        <input
-          type="text"
+        <AutoResizeTextarea
           placeholder="Effort"
           value={editEffort}
           onChange={(e) => setEditEffort(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-input/25 px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40"
+          className="min-h-8 px-2 py-1.5 text-xs"
         />
-        <input
-          type="text"
+        <AutoResizeTextarea
           placeholder="Joint pain / discomfort (optional)"
           value={editDiscomfort}
           onChange={(e) => setEditDiscomfort(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-input/25 px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40"
+          className="min-h-8 px-2 py-1.5 text-xs"
         />
         <button
           type="button"
@@ -821,27 +856,48 @@ export function ExerciseLogCard({
               <Flame className="size-3.5" />
               Warmup set
             </button>
-            <input
-              type="text"
+            <AutoResizeTextarea
               placeholder="Effort (e.g. felt heavy, easy...)"
               value={effort}
               onChange={(e) => setEffort(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-input/25 px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
             />
-            <input
-              type="text"
+            <AutoResizeTextarea
               placeholder="Joint pain / discomfort (optional)"
               value={discomfort}
               onChange={(e) => setDiscomfort(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-input/25 px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
             />
-            <input
-              type="text"
-              placeholder="Raise an alarm for later (optional)"
-              value={alarm}
-              onChange={(e) => setAlarm(e.target.value)}
-              className="h-9 rounded-lg border border-input bg-input/25 px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-            />
+            {showAlarmInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Raise an alarm for later (optional)"
+                  value={alarm}
+                  onChange={(e) => setAlarm(e.target.value)}
+                  className="h-9 flex-1 rounded-lg border border-destructive/50 bg-destructive/5 px-3 text-sm outline-none focus:ring-1 focus:ring-destructive/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlarm("");
+                    setShowAlarmInput(false);
+                  }}
+                  aria-label="Cancel alarm"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAlarmInput(true)}
+                className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-destructive text-sm font-semibold text-white transition-colors hover:bg-destructive/90"
+              >
+                <AlertTriangle className="size-3.5" />
+                Raise alarm
+              </button>
+            )}
 
             {dropSets.map((d, i) => (
               <div
