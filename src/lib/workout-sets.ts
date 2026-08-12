@@ -37,3 +37,14 @@ export function groupSetsWithDropsets<T extends DropsetAwareSet>(sets: T[]): Gro
     drops: dropsByParentId.get(main.id) ?? [],
   }));
 }
+
+/** "3:05" style elapsed time between two set timestamps — used to show rest time between consecutive sets. */
+export function formatElapsedSince(fromIso: string, toIso: string) {
+  const totalSeconds = Math.max(
+    0,
+    Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 1000),
+  );
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}

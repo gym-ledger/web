@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, CloudOff, Loader2, Plus, RefreshCw } from "lucide-react";
@@ -11,6 +11,10 @@ import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
 import { Button } from "@/components/ui/button";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
+import {
+  preloadExerciseHistories,
+  type ExerciseHistoryCache,
+} from "@/lib/workout/exercise-history-cache";
 import {
   fetchActiveWorkoutPlans,
   fetchProgramDays,
@@ -130,6 +134,30 @@ export default function ActiveWorkoutPage() {
   );
   const [exercises, setExercises] = useState<PlanExercise[]>([]);
   const [setsByExercise, setSetsByExercise] = useState<Record<string, WorkoutSet[]>>({});
+  // Previous-performance data for each exercise, fetched in the background as
+  // soon as the session's exercise list is known so "prefill from last time"
+  // and "previous performance" resolve instantly from cache instead of
+  // pinging the API on tap — gyms often have poor connectivity.
+  const [historyCache, setHistoryCache] = useState<ExerciseHistoryCache>({});
+  const historyCacheRef = useRef<ExerciseHistoryCache>({});
+  useEffect(() => {
+    historyCacheRef.current = historyCache;
+  }, [historyCache]);
+
+  const preloadHistories = useCallback((exerciseIds: (string | undefined)[]) => {
+    const toLoad = [...new Set(exerciseIds.filter((id): id is string => !!id))].filter(
+      (id) => !historyCacheRef.current[id],
+    );
+    if (toLoad.length === 0) return;
+    setHistoryCache((prev) => {
+      const next = { ...prev };
+      for (const id of toLoad) next[id] = { sessions: [], loading: true };
+      return next;
+    });
+    preloadExerciseHistories(toLoad, (exerciseId, entry) => {
+      setHistoryCache((prev) => ({ ...prev, [exerciseId]: entry }));
+    });
+  }, []);
   // Only one exercise card expanded at a time; expanding one collapses whichever was open.
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
 
@@ -174,6 +202,9 @@ export default function ActiveWorkoutPage() {
         ]);
         setWorkoutSession(ws);
         setExercises(ex);
+        // Fire-and-forget — not awaited, so a slow gym connection doesn't
+        // delay getting into the workout itself.
+        preloadHistories(ex.map((e) => e.exercise?.id));
 
         const existingSets = await fetchSessionSets(ws.id);
         const grouped: Record<string, WorkoutSet[]> = {};
@@ -192,7 +223,7 @@ export default function ActiveWorkoutPage() {
         setStep("error");
       }
     },
-    [],
+    [preloadHistories],
   );
 
   // Step 1: check for a workout already in progress (e.g. the app was
@@ -364,6 +395,7 @@ export default function ActiveWorkoutPage() {
     try {
       const planExercise = await addAdhocExercise(workoutSession.id, ex.id);
       setExercises((prev) => [...prev, planExercise]);
+      preloadHistories([planExercise.exercise?.id]);
       setExpandedExerciseId(planExercise.id);
       setAddExerciseOpen(false);
     } catch {
@@ -557,6 +589,7 @@ export default function ActiveWorkoutPage() {
                 exercise={ex}
                 workoutSessionId={workoutSession.id}
                 initialSets={setsByExercise[ex.id] ?? []}
+                history={ex.exercise ? historyCache[ex.exercise.id] : undefined}
                 isExpanded={expandedExerciseId === ex.id}
                 onToggleExpand={() => handleToggleExpand(ex.id)}
                 onSetLogged={(set, dropSets, restSeconds) =>

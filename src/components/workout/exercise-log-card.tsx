@@ -5,15 +5,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Loader2, History, Eraser, Plus, X, CloudOff, Pencil, Flame, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
-  fetchExerciseHistory,
   type PlanExercise,
   type WorkoutSet,
   type UpdateSetPayload,
-  type ExerciseHistorySession,
   type ExerciseHistorySet,
 } from "@/lib/api/workout";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
-import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatElapsedSince } from "@/lib/workout-sets";
+import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 import { cn } from "@/lib/utils";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
@@ -50,16 +49,6 @@ function formatTimeOfDay(iso: string) {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function formatElapsedSince(fromIso: string, toIso: string) {
-  const totalSeconds = Math.max(
-    0,
-    Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 1000),
-  );
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 /** "Weight" is the added weight (e.g. plates); "tool weight" is the bar/equipment itself. */
@@ -105,6 +94,8 @@ interface ExerciseLogCardProps {
   exercise: PlanExercise;
   workoutSessionId: string;
   initialSets: WorkoutSet[];
+  /** Previous-performance sessions preloaded by the parent when the workout started; undefined until preloading kicks off, `loading: true` while in flight. */
+  history: ExerciseHistoryCacheEntry | undefined;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onSetLogged: (set: WorkoutSet, dropSets: WorkoutSet[], restSeconds: number) => void;
@@ -114,6 +105,7 @@ export function ExerciseLogCard({
   exercise,
   workoutSessionId,
   initialSets,
+  history,
   isExpanded,
   onToggleExpand,
   onSetLogged,
@@ -150,11 +142,11 @@ export function ExerciseLogCard({
   // so rows update the moment the sync manager flushes them.
   const pendingSetUpdates = useWorkoutSetUpdateQueueStore((state) => state.queue);
 
-  // Fetched lazily (only once the card is expanded) so we're not firing a
-  // history request per exercise on page load.
-  const [lastSession, setLastSession] = useState<ExerciseHistorySession | null>(null);
-  const [lastSessionLoaded, setLastSessionLoaded] = useState(false);
-  const [prefillLoading, setPrefillLoading] = useState(false);
+  // Most recent session comes from the parent's preloaded history cache
+  // (fetched in the background when the workout started) rather than a fetch
+  // triggered by expanding this card.
+  const lastSession = history?.sessions[0] ?? null;
+  const prefillLoading = history?.loading ?? false;
 
   const exerciseName = exercise.exercise?.name ?? "Exercise";
   const groupedSets = groupSetsWithDropsets(sets);
@@ -262,22 +254,6 @@ export function ExerciseLogCard({
       effort: d.effort ?? "",
       discomfort: d.discomfort_notes ?? "",
     }));
-  }
-
-  function handleToggle() {
-    // isExpanded still reflects the pre-toggle state here, so this fires
-    // exactly once on the collapsed -> expanded transition.
-    if (!isExpanded && !lastSessionLoaded && exercise.exercise) {
-      setPrefillLoading(true);
-      fetchExerciseHistory(exercise.exercise.id, 1)
-        .then((sessions) => setLastSession(sessions[0] ?? null))
-        .catch(() => setLastSession(null))
-        .finally(() => {
-          setLastSessionLoaded(true);
-          setPrefillLoading(false);
-        });
-    }
-    onToggleExpand();
   }
 
   const lastGroupedSets = lastSession ? groupSetsWithDropsets(lastSession.sets) : [];
@@ -608,7 +584,7 @@ export function ExerciseLogCard({
     <div className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden">
       <div className="flex w-full items-start justify-between p-4 text-left">
         <div className="flex-1 min-w-0">
-          <button type="button" onClick={handleToggle} className="block w-full text-left">
+          <button type="button" onClick={onToggleExpand} className="block w-full text-left">
             <h3 className="text-base font-bold text-foreground leading-tight">
               {exerciseName}
             </h3>
@@ -628,7 +604,7 @@ export function ExerciseLogCard({
                       renderSetEditForm()
                     ) : (
                       <div
-                        onClick={handleToggle}
+                        onClick={onToggleExpand}
                         className="-mx-1 flex cursor-pointer items-center gap-2 rounded-lg px-1 text-sm"
                       >
                         <span className="w-5 shrink-0 text-center font-semibold text-muted-foreground">
@@ -684,7 +660,7 @@ export function ExerciseLogCard({
                             renderSetEditForm()
                           ) : (
                             <div
-                              onClick={handleToggle}
+                              onClick={onToggleExpand}
                               className="-mx-1 flex cursor-pointer items-center gap-2 rounded-lg px-1 text-xs"
                             >
                               <span className="text-muted-foreground">↳ Drop {d.drop_order}</span>
@@ -731,7 +707,7 @@ export function ExerciseLogCard({
         </div>
         <button
           type="button"
-          onClick={handleToggle}
+          onClick={onToggleExpand}
           aria-label={isExpanded ? "Collapse" : "Expand"}
           className="p-0.5"
         >
@@ -866,39 +842,6 @@ export function ExerciseLogCard({
               value={discomfort}
               onChange={(e) => setDiscomfort(e.target.value)}
             />
-            {showAlarmInput ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Raise an alarm for later (optional)"
-                  value={alarm}
-                  onChange={(e) => setAlarm(e.target.value)}
-                  className="h-9 flex-1 rounded-lg border border-destructive/50 bg-destructive/5 px-3 text-sm outline-none focus:ring-1 focus:ring-destructive/40"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAlarm("");
-                    setShowAlarmInput(false);
-                  }}
-                  aria-label="Cancel alarm"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAlarmInput(true)}
-                className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-destructive text-sm font-semibold text-white transition-colors hover:bg-destructive/90"
-              >
-                <AlertTriangle className="size-3.5" />
-                Raise alarm
-              </button>
-            )}
-
             {dropSets.map((d, i) => (
               <div
                 key={d.key}
@@ -966,17 +909,54 @@ export function ExerciseLogCard({
               Drop set{dropSets.length > 0 ? ` (${dropSets.length}/${MAX_DROP_SETS})` : ""}
             </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              {groupedSets.length > 0 ? "Add set" : "Log set"}
-            </button>
+            {showAlarmInput && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Raise an alarm for later (optional)"
+                  value={alarm}
+                  onChange={(e) => setAlarm(e.target.value)}
+                  className="h-9 flex-1 rounded-lg border border-destructive/50 bg-destructive/5 px-3 text-sm outline-none focus:ring-1 focus:ring-destructive/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlarm("");
+                    setShowAlarmInput(false);
+                  }}
+                  aria-label="Cancel alarm"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                {groupedSets.length > 0 ? "Add set" : "Log set"}
+              </button>
+              {!showAlarmInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowAlarmInput(true)}
+                  aria-label="Raise alarm"
+                  title="Raise alarm"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-destructive/50 bg-destructive/10 text-destructive transition-colors hover:bg-destructive/20"
+                >
+                  <AlertTriangle className="size-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {exercise.exercise && (
-            <ExerciseHistoryPanel exerciseId={exercise.exercise.id} />
+            <ExerciseHistoryPanel exerciseId={exercise.exercise.id} preloaded={history} />
           )}
         </div>
           </motion.div>

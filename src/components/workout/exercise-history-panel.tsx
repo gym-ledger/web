@@ -3,12 +3,19 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, History, Loader2 } from "lucide-react";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
-import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatElapsedSince } from "@/lib/workout-sets";
+import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 
 interface ExerciseHistoryPanelProps {
   exerciseId: string;
   /** Only show sessions strictly before this one (excludes it and anything later). */
   beforeSessionId?: string;
+  /**
+   * Sessions preloaded by the parent (e.g. when an active workout started) —
+   * when given, the panel opens instantly from this instead of fetching.
+   * "View all logs" still hits the API for anything beyond what's preloaded.
+   */
+  preloaded?: ExerciseHistoryCacheEntry;
 }
 
 function formatDate(iso: string) {
@@ -26,32 +33,46 @@ function formatWeightReps(weight: number | null, toolWeight: number | null, reps
   return `${load} × ${reps ?? "—"}`;
 }
 
-export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHistoryPanelProps) {
+export function ExerciseHistoryPanel({
+  exerciseId,
+  beforeSessionId,
+  preloaded,
+}: ExerciseHistoryPanelProps) {
   const [open, setOpen] = useState(false);
-  const [sessions, setSessions] = useState<ExerciseHistorySession[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Only populated by an on-demand fetch — either the initial load when there's
+  // no `preloaded` data to open from, or "View all logs" going past it.
+  const [fetchedSessions, setFetchedSessions] = useState<ExerciseHistorySession[] | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(false);
   const [showingAll, setShowingAll] = useState(false);
 
-  async function load(limit: number, all: boolean) {
-    setLoading(true);
+  async function loadAll() {
+    setFetchLoading(true);
     try {
-      const data = await fetchExerciseHistory(exerciseId, limit, beforeSessionId);
-      setSessions(data);
-      setShowingAll(all);
+      const data = await fetchExerciseHistory(exerciseId, 200, beforeSessionId);
+      setFetchedSessions(data);
+      setShowingAll(true);
     } catch {
-      setSessions([]);
+      setFetchedSessions([]);
+      setShowingAll(true);
     } finally {
-      setLoading(false);
+      setFetchLoading(false);
     }
   }
 
   function handleToggle() {
     const next = !open;
     setOpen(next);
-    if (next && sessions === null) {
-      load(5, false);
+    if (next && fetchedSessions === null && !preloaded) {
+      setFetchLoading(true);
+      fetchExerciseHistory(exerciseId, 5, beforeSessionId)
+        .then(setFetchedSessions)
+        .catch(() => setFetchedSessions([]))
+        .finally(() => setFetchLoading(false));
     }
   }
+
+  const sessions = showingAll ? fetchedSessions : (preloaded?.sessions ?? fetchedSessions);
+  const loading = showingAll ? fetchLoading : (preloaded?.loading ?? fetchLoading);
 
   return (
     <div className="rounded-xl bg-secondary/30">
@@ -96,7 +117,7 @@ export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHi
                   </div>
 
                   <div className="mt-1.5 flex flex-col gap-1.5">
-                    {groupSetsWithDropsets(session.sets).map(({ main: s, drops }) => (
+                    {groupSetsWithDropsets(session.sets).map(({ main: s, drops }, i, groups) => (
                       <div key={s.id} className="flex flex-col gap-1">
                         <div className="flex items-start gap-2 text-xs">
                           <span className="w-4 shrink-0 text-center font-semibold text-muted-foreground">
@@ -115,6 +136,14 @@ export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHi
                               </p>
                             )}
                           </div>
+                          {i > 0 && (
+                            <span
+                              title={`Started ${formatElapsedSince(groups[i - 1].main.created_at, s.created_at)} after the previous set`}
+                              className="shrink-0 tabular-nums text-[10px] text-muted-foreground"
+                            >
+                              +{formatElapsedSince(groups[i - 1].main.created_at, s.created_at)}
+                            </span>
+                          )}
                         </div>
                         {drops.map((d) => (
                           <div key={d.id} className="flex items-start gap-2 pl-6 text-[11px]">
@@ -142,7 +171,7 @@ export function ExerciseHistoryPanel({ exerciseId, beforeSessionId }: ExerciseHi
               {!showingAll && (
                 <button
                   type="button"
-                  onClick={() => load(200, true)}
+                  onClick={loadAll}
                   className="mt-1 text-center text-xs font-medium text-primary"
                 >
                   View all logs

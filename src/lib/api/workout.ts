@@ -399,6 +399,7 @@ export interface ExerciseHistorySet {
   alarm_message: string | null;
   parent_set_id: string | null;
   drop_order: number | null;
+  created_at: string;
 }
 
 export interface ExerciseHistorySession {
