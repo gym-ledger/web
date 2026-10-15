@@ -19,17 +19,24 @@ export class ApiError extends Error {
 
 type RequestOptions = Omit<RequestInit, "headers"> & {
   headers?: Record<string, string>;
+  /**
+   * `false` for the public auth endpoints: no bearer token is sent and a 401
+   * is the server's answer (e.g. "Invalid credentials"), not an expired session.
+   */
+  auth?: boolean;
   _retried?: boolean;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { _retried, headers: extraHeaders, ...fetchOptions } = options;
+  const { _retried, auth = true, headers: extraHeaders, ...fetchOptions } = options;
 
   let token: string | null = null;
-  try {
-    token = await getValidAccessToken();
-  } catch {
-    // No active session — proceed unauthenticated (e.g., login endpoints)
+  if (auth) {
+    try {
+      token = await getValidAccessToken();
+    } catch {
+      // No active session — proceed unauthenticated (e.g., login endpoints)
+    }
   }
 
   const isFormData = fetchOptions.body instanceof FormData;
@@ -53,7 +60,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new ApiError(0, "Network error — check your connection and try again");
   }
 
-  if (res.status === 401 && !_retried) {
+  if (res.status === 401 && auth && !_retried) {
     const { refreshToken } = useAuthStore.getState();
     if (!refreshToken) {
       throw new ApiError(401, "Unauthorized");
@@ -102,8 +109,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
 
-  post: <T>(path: string, body?: unknown) =>
+  post: <T>(path: string, body?: unknown, options?: Pick<RequestOptions, "auth">) =>
     request<T>(path, {
+      ...options,
       method: "POST",
       body: body instanceof FormData ? body : JSON.stringify(body),
     }),

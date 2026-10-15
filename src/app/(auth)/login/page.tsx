@@ -1,51 +1,45 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Mail, Phone } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { apiClient, ApiError } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/auth/authStore";
+import { loginWithPassword, sendLoginOtp, verifyLoginOtp, type LoginResponse } from "@/lib/api/auth";
+import {
+  IdentityField,
+  IdentityMethodToggle,
+  identityLabel,
+  toIdentity,
+  type IdentityValue,
+} from "@/components/auth/identity-field";
+import { OtpInput, OTP_LENGTH, emptyOtp } from "@/components/auth/otp-input";
+import { PasswordField } from "@/components/auth/password-field";
 
 type Step = "input" | "otp";
-type Method = "email" | "phone";
-
-interface VerifyResponse {
-  accessToken: string;
-  refreshToken: string;
-  accessTokenExpiresAt: string | number;
-  user: { id: string; email?: string; phone_number?: string; phone_country_code?: string };
-}
-
-const COUNTRY_CODES = [
-  { code: "+1", label: "+1  US/CA" },
-  { code: "+44", label: "+44 UK" },
-  { code: "+91", label: "+91 IN" },
-  { code: "+61", label: "+61 AU" },
-  { code: "+49", label: "+49 DE" },
-  { code: "+33", label: "+33 FR" },
-  { code: "+55", label: "+55 BR" },
-  { code: "+81", label: "+81 JP" },
-];
+type Mode = "code" | "password";
 
 const RESEND_COOLDOWN = 60;
-const OTP_LENGTH = 6;
-const emptyOtp = () => Array<string>(OTP_LENGTH).fill("");
 
 export default function LoginPage() {
   const router = useRouter();
   const setTokens = useAuthStore((s) => s.setTokens);
 
   const [step, setStep] = useState<Step>("input");
-  const [method, setMethod] = useState<Method>("email");
+  const [mode, setMode] = useState<Mode>("code");
 
   // input step
-  const [email, setEmail] = useState("user@user.com");
-  const [phoneCode, setPhoneCode] = useState("+1");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [identity, setIdentity] = useState<IdentityValue>({
+    method: "email",
+    email: "user@user.com",
+    phoneCode: "+1",
+    phoneNumber: "",
+  });
+  const [password, setPassword] = useState("");
 
   // otp step
   const [otpDigits, setOtpDigits] = useState(emptyOtp);
@@ -63,13 +57,17 @@ export default function LoginPage() {
   }, [resendCountdown]);
 
   const otp = otpDigits.join("");
-  const contactLabel =
-    method === "email" ? email : `${phoneCode} ${phoneNumber}`;
 
-  function buildSendBody() {
-    return method === "email"
-      ? { method: "email", email }
-      : { method: "phone", phoneNumber: { code: phoneCode, number: phoneNumber } };
+  function signIn(data: LoginResponse) {
+    setTokens(
+      {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        accessTokenExpiresAt: data.accessTokenExpiresAt,
+      },
+      data.user,
+    );
+    router.push("/home");
   }
 
   async function handleSendOtp(e?: React.FormEvent) {
@@ -77,7 +75,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await apiClient.post("/auth/login/send-otp", buildSendBody());
+      await sendLoginOtp(toIdentity(identity));
       setStep("otp");
       setOtpDigits(emptyOtp());
       setResendCountdown(RESEND_COOLDOWN);
@@ -89,22 +87,25 @@ export default function LoginPage() {
     }
   }
 
+  async function handlePasswordLogin(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      signIn(await loginWithPassword(toIdentity(identity), password));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Sign in failed. Try again.");
+      setLoading(false);
+    }
+  }
+
   async function submitOtp(otpValue: string) {
     if (otpValue.length < OTP_LENGTH || loading) return;
     setLoading(true);
     setError(null);
     try {
-      const body = { ...buildSendBody(), otp: otpValue };
-      const data = await apiClient.post<VerifyResponse>("/auth/login/verify-otp", body);
-      setTokens(
-        {
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          accessTokenExpiresAt: data.accessTokenExpiresAt,
-        },
-        data.user,
-      );
-      router.push("/home");
+      signIn(await verifyLoginOtp(toIdentity(identity), otpValue));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Verification failed. Try again.");
     } finally {
@@ -117,39 +118,14 @@ export default function LoginPage() {
     submitOtp(otp);
   }
 
-  function handleOtpInput(index: number, value: string) {
-    const digit = value.replace(/\D/g, "").slice(-1);
-    const next = [...otpDigits];
-    next[index] = digit;
-    setOtpDigits(next);
-    if (digit && index < OTP_LENGTH - 1) {
-      otpRefs.current[index + 1]?.focus();
-    } else if (digit && index === OTP_LENGTH - 1 && next.every(Boolean)) {
-      otpRefs.current[index]?.blur();
-      submitOtp(next.join(""));
-    }
+  function changeIdentity(next: IdentityValue) {
+    setIdentity(next);
+    setError(null);
   }
 
-  function handleOtpKeyDown(index: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  }
-
-  function handleOtpPaste(e: React.ClipboardEvent) {
-    e.preventDefault();
-    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
-    const next = emptyOtp();
-    for (let i = 0; i < text.length; i++) next[i] = text[i];
-    setOtpDigits(next);
-    otpRefs.current[Math.min(text.length, OTP_LENGTH - 1)]?.focus();
-    if (text.length === OTP_LENGTH) submitOtp(text);
-  }
-
-  function switchMethod() {
-    setMethod((m) => (m === "email" ? "phone" : "email"));
-    setEmail("");
-    setPhoneNumber("");
+  function switchMode() {
+    setMode((m) => (m === "code" ? "password" : "code"));
+    setPassword("");
     setError(null);
   }
 
@@ -184,7 +160,11 @@ export default function LoginPage() {
               >
                 <span className="label-caps text-primary">Sign in</span>
                 <h1 className="font-display text-[34px] leading-none font-bold">Let&apos;s train.</h1>
-                <p className="text-sm text-muted-foreground">We&apos;ll send a one-time code — no password needed.</p>
+                <p className="text-sm text-muted-foreground">
+                  {mode === "code"
+                    ? "We'll send a one-time code — no password needed."
+                    : "Sign in with your password."}
+                </p>
               </motion.div>
             ) : (
               <motion.div
@@ -197,12 +177,12 @@ export default function LoginPage() {
               >
                 <span className="label-caps text-primary">Verify</span>
                 <h1 className="font-display text-[34px] leading-none font-bold">
-                  Check your {method === "email" ? "inbox" : "phone"}
+                  Check your {identity.method === "email" ? "inbox" : "phone"}
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   We sent a {OTP_LENGTH}-digit code to
                 </p>
-                <p className="text-sm font-semibold text-foreground">{contactLabel}</p>
+                <p className="text-sm font-semibold text-foreground">{identityLabel(identity)}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -218,54 +198,27 @@ export default function LoginPage() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.22 }}
             >
-              <form onSubmit={handleSendOtp} className="flex flex-col gap-3">
-                {method === "email" ? (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="label-caps">
-                      Email
-                    </label>
-                    <Input
-                      type="email"
-                      placeholder="alex@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="h-13 rounded-xl text-base"
-                      required
-                      autoFocus
+              <form
+                onSubmit={mode === "code" ? handleSendOtp : handlePasswordLogin}
+                className="flex flex-col gap-3"
+              >
+                <IdentityField value={identity} onChange={changeIdentity} autoFocus />
+
+                {mode === "password" && (
+                  <>
+                    <PasswordField
+                      label="Password"
+                      value={password}
+                      onChange={setPassword}
+                      autoComplete="current-password"
                     />
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    <label className="label-caps">
-                      Mobile number
-                    </label>
-                    <div className="flex gap-2">
-                      <select
-                        value={phoneCode}
-                        onChange={(e) => setPhoneCode(e.target.value)}
-                        className="h-13 w-28 shrink-0 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                      >
-                        {COUNTRY_CODES.map(({ code, label }) => (
-                          <option key={code} value={code}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <Input
-                        type="tel"
-                        inputMode="numeric"
-                        placeholder="10-digit number"
-                        value={phoneNumber}
-                        onChange={(e) =>
-                          setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))
-                        }
-                        className="h-13 flex-1 rounded-xl text-base"
-                        required
-                        autoFocus
-                        pattern="[0-9]{10}"
-                      />
-                    </div>
-                  </div>
+                    <Link
+                      href="/forgot-password"
+                      className="-mt-1 flex min-h-11 items-center self-end text-sm font-medium text-primary hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  </>
                 )}
 
                 {error && (
@@ -279,28 +232,22 @@ export default function LoginPage() {
                   variant="light"
                   className={cn("mt-1 w-full", loading && "opacity-70")}
                 >
-                  {loading ? "Sending code…" : "Send code"}
+                  {mode === "code"
+                    ? loading ? "Sending code…" : "Send code"
+                    : loading ? "Signing in…" : "Sign in"}
                 </Button>
               </form>
 
-              {/* Method toggle */}
-              <button
-                type="button"
-                onClick={switchMethod}
-                className="mt-5 flex w-full items-center justify-center gap-2 text-sm font-medium text-primary hover:underline"
-              >
-                {method === "email" ? (
-                  <>
-                    <Phone className="size-3.5" />
-                    Sign in with mobile number instead
-                  </>
-                ) : (
-                  <>
-                    <Mail className="size-3.5" />
-                    Sign in with email instead
-                  </>
-                )}
-              </button>
+              <div className="mt-4 flex flex-col">
+                <IdentityMethodToggle value={identity} onChange={changeIdentity} />
+                <button
+                  type="button"
+                  onClick={switchMode}
+                  className="flex min-h-11 w-full items-center justify-center text-sm font-medium text-muted-foreground hover:text-foreground"
+                >
+                  {mode === "code" ? "Use a password instead" : "Send me a code instead"}
+                </button>
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -320,28 +267,12 @@ export default function LoginPage() {
               }}
             >
               <form onSubmit={handleVerifyOtp} className="flex flex-col gap-5">
-                {/* OTP inputs */}
-                <div className="flex justify-between gap-2">
-                  {otpDigits.map((digit, i) => (
-                    <input
-                      key={i}
-                      ref={(el) => {
-                        otpRefs.current[i] = el;
-                      }}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpInput(i, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      onPaste={i === 0 ? handleOtpPaste : undefined}
-                      className={cn(
-                        "num size-12 rounded-xl border-2 border-input bg-background text-center text-[26px] text-foreground transition-colors outline-none focus:border-primary",
-                        digit && "border-foreground/60",
-                      )}
-                    />
-                  ))}
-                </div>
+                <OtpInput
+                  digits={otpDigits}
+                  onChange={setOtpDigits}
+                  onComplete={submitOtp}
+                  inputRefs={otpRefs}
+                />
 
                 {error && (
                   <p className="text-center text-sm text-destructive">{error}</p>
@@ -382,7 +313,7 @@ export default function LoginPage() {
                     className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                   >
                     <ArrowLeft className="size-3.5" />
-                    Change {method === "email" ? "email" : "number"}
+                    Change {identity.method === "email" ? "email" : "number"}
                   </button>
                 </div>
               </form>
@@ -391,7 +322,9 @@ export default function LoginPage() {
         </AnimatePresence>
 
         <p className="mt-8 text-[13px] text-muted-foreground">
-          New here? The same code creates your account.
+          {mode === "code"
+            ? "New here? The same code creates your account."
+            : "No password yet? Sign in with a code, then set one in Profile → Settings."}
         </p>
       </motion.div>
     </div>
