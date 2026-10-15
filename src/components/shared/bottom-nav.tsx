@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/home", icon: Home, label: "Home" },
-  { href: "/workout", icon: Dumbbell, label: "Workout" },
+  { href: "/workout", icon: Dumbbell, label: "Train" },
   { href: "/progress", icon: TrendingUp, label: "Progress" },
-  { href: "/exercises", icon: BookOpen, label: "Exercises" },
+  { href: "/exercises", icon: BookOpen, label: "Library" },
   { href: "/profile", icon: User, label: "Profile" },
 ];
 
@@ -17,38 +17,26 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-background/95 backdrop-blur-sm">
-      <div className="flex items-center justify-around px-2 pb-5 pt-2">
+    <nav
+      aria-label="Main"
+      className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-line bg-background/95 backdrop-blur-sm"
+    >
+      <div className="grid grid-cols-5 px-2 pt-2 pb-5">
         {navItems.map(({ href, icon: Icon, label }) => {
-          const isActive = pathname === href || pathname.startsWith(href + "/") && href !== "/";
-          const active = pathname === href;
+          const active = pathname === href || pathname.startsWith(href + "/");
 
           return (
             <Link
               key={href}
               href={href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors min-w-[52px]",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                "flex min-h-11 flex-col items-center justify-center gap-1 text-[10px] font-semibold tracking-[0.08em] uppercase transition-colors",
+                active ? "text-foreground" : "text-subtle hover:text-muted-foreground",
               )}
             >
-              <Icon
-                className={cn(
-                  "size-5 transition-all",
-                  active && "scale-110"
-                )}
-                strokeWidth={active ? 2.5 : 1.8}
-              />
-              <span
-                className={cn(
-                  "text-[10px] font-medium leading-none",
-                  active ? "text-primary" : "text-muted-foreground"
-                )}
-              >
-                {label}
-              </span>
+              <Icon className="size-[22px]" strokeWidth={active ? 2.2 : 1.8} />
+              {label}
             </Link>
           );
         })}

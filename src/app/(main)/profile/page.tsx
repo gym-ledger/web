@@ -1,194 +1,250 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Settings, Edit2, Star, Award, Flame, Zap, Dumbbell, Trophy } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { currentUser, achievements, favoriteExercises } from "@/lib/data/user";
-import { exercises } from "@/lib/data/exercises";
+import { performLogout } from "@/auth/tokenManager";
+import { ApiError } from "@/lib/api-client";
+import {
+  fetchPreferences,
+  fetchProfile,
+  updatePreferences,
+  type HeightUnits,
+  type UserPreferences,
+  type UserProfile,
+  type WeightUnits,
+} from "@/lib/api/profile";
 import { cn } from "@/lib/utils";
 
-const formatNumber = (n: number) => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return `${n}`;
-};
+function deviceTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
 
-const achievementIcons: Record<string, React.ElementType> = {
-  "first-workout": Dumbbell,
-  "streak-7": Flame,
-  "100-workouts": Award,
-  "pr-master": Trophy,
-};
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className="flex rounded-full border border-input bg-background p-1">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          role="radio"
+          aria-checked={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          className={cn(
+            "min-h-9 min-w-12 rounded-full px-3 text-[13px] font-bold transition-colors",
+            value === opt.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-line py-3.5">
+      <div className="min-w-0">
+        <p className="text-[15px] font-semibold">{label}</p>
+        {sub && <p className="truncate text-[13px] text-muted-foreground">{sub}</p>}
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
-  const memberSince = new Date(currentUser.memberSince).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  // `null` saved preferences means the user has never saved any — the first save must send every field.
+  const [saved, setSaved] = useState<UserPreferences | null>(null);
+  const [draft, setDraft] = useState<UserPreferences>({
+    timezone: deviceTimezone(),
+    weight_units: "kg",
+    height_units: "cm",
+    height: 0,
   });
+  const [heightInput, setHeightInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const favoriteExerciseObjects = favoriteExercises
-    .map((id) => exercises.find((e) => e.id === id))
-    .filter(Boolean);
+  useEffect(() => {
+    Promise.allSettled([fetchProfile(), fetchPreferences()])
+      .then(([p, prefs]) => {
+        if (p.status === "fulfilled") setProfile(p.value);
+        if (prefs.status === "fulfilled" && prefs.value) {
+          setSaved(prefs.value);
+          setDraft(prefs.value);
+          setHeightInput(String(prefs.value.height));
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const parsedHeight = heightInput.trim() ? parseFloat(heightInput) : NaN;
+  const heightValid = !Number.isNaN(parsedHeight) && parsedHeight > 0;
+  const dirty =
+    !saved ||
+    saved.weight_units !== draft.weight_units ||
+    saved.height_units !== draft.height_units ||
+    saved.timezone !== draft.timezone ||
+    (heightValid && saved.height !== parsedHeight);
+
+  async function handleSave() {
+    if (!heightValid) {
+      toast.error("Enter your height");
+      return;
+    }
+    setSaving(true);
+    try {
+      const next = await updatePreferences({ ...draft, height: parsedHeight });
+      setSaved(next);
+      setDraft(next);
+      setHeightInput(String(next.height));
+      toast.success("Preferences saved");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleLogout() {
+    performLogout();
+    router.replace("/login");
+  }
+
+  const phone =
+    profile?.phone_number != null
+      ? `${profile.phone_country_code ? `+${profile.phone_country_code.replace(/^\+/, "")} ` : ""}${profile.phone_number}`
+      : null;
+  const deviceTz = deviceTimezone();
 
   return (
-    <div className="flex flex-col px-4 pt-4 pb-4">
-      {/* Header */}
-      <div className="flex items-center justify-between py-2 mb-2">
-        <h1 className="text-xl font-bold text-foreground">Profile</h1>
-        <Link href="/settings">
-          <button className="flex size-9 items-center justify-center rounded-xl bg-card ring-1 ring-foreground/10 hover:bg-secondary transition-colors">
-            <Settings className="size-4 text-foreground" />
-          </button>
-        </Link>
-      </div>
+    <div className="flex flex-col px-4 pb-6">
+      <PageHeader title="Profile" subtitle="Account" />
 
-      {/* User card */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 mb-5"
-      >
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
-          <div className="flex size-18 shrink-0 items-center justify-center rounded-2xl bg-primary/10 ring-2 ring-primary/30">
-            <span className="text-3xl font-black text-primary">
-              {currentUser.name.split(" ").map((n) => n[0]).join("")}
-            </span>
-          </div>
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-foreground">{currentUser.name}</h2>
-            <p className="text-sm text-muted-foreground">@{currentUser.username}</p>
-            <p className="text-xs text-muted-foreground mt-1">Member since {memberSince}</p>
-            <div className="flex items-center gap-1.5 mt-2">
-              <span className="text-xs rounded-lg bg-primary/10 text-primary px-2 py-0.5 font-medium capitalize">
-                {currentUser.experience}
-              </span>
-              <span className="text-xs rounded-lg bg-secondary text-secondary-foreground px-2 py-0.5 font-medium capitalize">
-                {currentUser.goal.replace("_", " ")}
-              </span>
-            </div>
-          </div>
+      {loading ? (
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4 w-full h-9 rounded-xl gap-2"
-        >
-          <Edit2 className="size-3.5" />
-          Edit Profile
-        </Button>
-      </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-7">
+          <section className="flex flex-col">
+            <h2 className="label-caps border-b border-input pb-2">Signed in as</h2>
+            {profile?.email && (
+              <Row label="Email">
+                <span className="text-sm text-muted-foreground">{profile.email}</span>
+              </Row>
+            )}
+            {phone && (
+              <Row label="Phone">
+                <span className="text-sm text-muted-foreground tabular-nums">{phone}</span>
+              </Row>
+            )}
+            {!profile?.email && !phone && (
+              <p className="py-3.5 text-sm text-muted-foreground">Couldn&apos;t load your account details.</p>
+            )}
+          </section>
 
-      {/* Stats grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.06 }}
-        className="grid grid-cols-2 gap-3 mb-5"
-      >
-        {[
-          { label: "Workouts", value: `${currentUser.stats.totalWorkouts}`, icon: Dumbbell },
-          { label: "Personal Records", value: `${currentUser.stats.totalPRs}`, icon: Trophy },
-          { label: "Best Streak", value: `${currentUser.stats.longestStreak}d`, icon: Flame },
-          { label: "Volume lifted", value: formatNumber(currentUser.stats.totalVolume) + "kg", icon: Zap },
-        ].map(({ label, value, icon: StatIcon }, i) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.08 + i * 0.04 }}
-            className="flex flex-col gap-1.5 rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
-          >
-            <StatIcon className="size-5 text-primary" />
-            <p className="text-2xl font-black text-foreground tabular-nums">{value}</p>
-            <p className="text-xs text-muted-foreground">{label}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Achievements */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="mb-5"
-      >
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-foreground">Achievements</h2>
-          <Award className="size-4 text-muted-foreground" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {achievements.map((achievement, i) => (
-            <motion.div
-              key={achievement.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.18 + i * 0.04 }}
-              className={cn(
-                "flex flex-col gap-2 rounded-2xl p-3.5 ring-1",
-                achievement.unlocked
-                  ? "bg-card ring-foreground/10"
-                  : "bg-secondary/30 ring-foreground/5"
-              )}
-            >
-              {(() => {
-                const AchIcon = achievementIcons[achievement.id] ?? Award;
-                return <AchIcon className={cn("size-6 text-primary", !achievement.unlocked && "opacity-30")} />;
-              })()}
-              <div>
-                <p
-                  className={cn(
-                    "text-sm font-semibold leading-tight",
-                    achievement.unlocked ? "text-foreground" : "text-muted-foreground"
-                  )}
+          <section className="flex flex-col">
+            <h2 className="label-caps border-b border-input pb-2">Units &amp; body</h2>
+            {!saved && (
+              <p className="pt-3 text-[13px] text-warning">
+                Set these once — they&apos;re used for your stats, volume and body-weight tracking.
+              </p>
+            )}
+            <Row label="Weight units" sub="Used for volume and PRs">
+              <Segmented<WeightUnits>
+                label="Weight units"
+                options={[
+                  { value: "kg", label: "kg" },
+                  { value: "lbs", label: "lbs" },
+                ]}
+                value={draft.weight_units}
+                onChange={(v) => setDraft((d) => ({ ...d, weight_units: v }))}
+              />
+            </Row>
+            <Row label="Height units">
+              <Segmented<HeightUnits>
+                label="Height units"
+                options={[
+                  { value: "cm", label: "cm" },
+                  { value: "ft", label: "ft" },
+                ]}
+                value={draft.height_units}
+                onChange={(v) => setDraft((d) => ({ ...d, height_units: v }))}
+              />
+            </Row>
+            <Row label="Height">
+              <label className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  aria-label={`Height in ${draft.height_units}`}
+                  placeholder="—"
+                  value={heightInput}
+                  onChange={(e) => setHeightInput(e.target.value)}
+                  className="num h-11 w-24 rounded-xl border border-input bg-background text-center text-xl outline-none placeholder:text-subtle focus:border-primary"
+                />
+                <span className="text-sm text-muted-foreground">{draft.height_units}</span>
+              </label>
+            </Row>
+            <Row label="Timezone" sub={draft.timezone}>
+              {draft.timezone !== deviceTz ? (
+                <button
+                  type="button"
+                  onClick={() => setDraft((d) => ({ ...d, timezone: deviceTz }))}
+                  className="min-h-9 rounded-full border border-input px-3 text-[13px] font-semibold text-primary"
                 >
-                  {achievement.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{achievement.description}</p>
-              </div>
-              {achievement.unlocked && achievement.unlockedDate && (
-                <p className="text-[10px] text-primary">
-                  Unlocked {new Date(achievement.unlockedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </p>
+                  Use {deviceTz}
+                </button>
+              ) : (
+                <span className="text-[13px] text-subtle">This device</span>
               )}
-              {!achievement.unlocked && (
-                <p className="text-[10px] text-muted-foreground/50">Locked</p>
-              )}
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
+            </Row>
+            <Button
+              size="xl"
+              className="mt-4 w-full"
+              disabled={!dirty || saving || !heightValid}
+              onClick={handleSave}
+            >
+              {saving && <Loader2 className="animate-spin" />}
+              {saved ? "Save changes" : "Save preferences"}
+            </Button>
+          </section>
 
-      {/* Favourite exercises */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.22 }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-base font-bold text-foreground">Favourite Exercises</h2>
-          <Star className="size-4 text-primary fill-primary" />
-        </div>
-        <div className="flex flex-col gap-2">
-          {favoriteExerciseObjects.map((ex, i) => (
-            ex && (
-              <Link key={ex.id} href={`/exercises/${ex.id}`}>
-                <div className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                    <Dumbbell className="size-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{ex.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{ex.primaryMuscle}</p>
-                  </div>
-                </div>
-              </Link>
-            )
-          ))}
-        </div>
-      </motion.div>
+          <section className="flex flex-col">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-danger-line bg-danger-surface text-sm font-bold text-destructive transition-colors hover:bg-destructive/15"
+            >
+              <LogOut className="size-4" />
+              Log out
+            </button>
+          </section>
+        </motion.div>
+      )}
     </div>
   );
 }

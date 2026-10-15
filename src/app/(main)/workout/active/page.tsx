@@ -3,11 +3,18 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, CloudOff, Loader2, Plus, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronLeft, ChevronRight, CloudOff, List as ListIcon, Loader2, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { ExerciseLogCard } from "@/components/workout/exercise-log-card";
 import { RestTimer } from "@/components/workout/rest-timer";
 import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
+import {
+  SessionExercisesSheet,
+  exerciseProgress,
+  type SessionExerciseSummary,
+} from "@/components/workout/session-exercises-sheet";
+import { ProgressRing } from "@/components/shared/progress-ring";
 import { Button } from "@/components/ui/button";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
@@ -33,6 +40,7 @@ import {
   type WorkoutSet,
 } from "@/lib/api/workout";
 import type { ExerciseListItem } from "@/lib/api/exercises";
+import { cn } from "@/lib/utils";
 
 type Step =
   | "loading"
@@ -45,17 +53,21 @@ type Step =
   | "error";
 
 function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const mmss = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return h > 0 ? `${h}:${mmss}` : mmss;
 }
 
 function PickerList<T>({
+  eyebrow,
   title,
   items,
   render,
   onPick,
 }: {
+  eyebrow: string;
   title: string;
   items: T[];
   render: (item: T) => { title: string; subtitle?: string };
@@ -63,26 +75,30 @@ function PickerList<T>({
 }) {
   return (
     <div className="flex flex-col px-4 pt-6">
-      <h1 className="text-xl font-bold text-foreground mb-4">{title}</h1>
-      <div className="flex flex-col gap-2.5">
+      <Link href="/workout" className="mb-5 flex min-h-11 w-fit items-center gap-1 text-sm font-semibold text-muted-foreground">
+        <ChevronLeft className="size-4" />
+        Back
+      </Link>
+      <span className="label-caps text-primary">{eyebrow}</span>
+      <h1 className="mt-1 mb-5 font-display text-[32px] leading-none font-bold">{title}</h1>
+      <div className="flex flex-col border-t border-line">
         {items.map((item, i) => {
           const { title: itemTitle, subtitle } = render(item);
           return (
             <motion.button
               key={i}
+              type="button"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
+              transition={{ delay: i * 0.04 }}
               onClick={() => onPick(item)}
-              className="flex items-center justify-between rounded-2xl bg-card p-4 text-left ring-1 ring-foreground/10 hover:bg-secondary/50 transition-colors"
+              className="flex min-h-16 items-center justify-between gap-3 border-b border-line py-3 text-left"
             >
-              <div>
-                <p className="text-sm font-semibold text-foreground">{itemTitle}</p>
-                {subtitle && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
-                )}
+              <div className="min-w-0">
+                <p className="truncate font-display text-[22px] leading-tight font-bold">{itemTitle}</p>
+                {subtitle && <p className="text-[13px] text-muted-foreground">{subtitle}</p>}
               </div>
-              <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
             </motion.button>
           );
         })}
@@ -105,10 +121,10 @@ function CenteredMessage({
   const router = useRouter();
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-      <h2 className="text-lg font-bold text-foreground">{title}</h2>
+      <h2 className="font-display text-[28px] leading-tight font-bold">{title}</h2>
       <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
       {ctaLabel && ctaHref && (
-        <Button className="mt-5 rounded-xl" onClick={() => router.push(ctaHref)}>
+        <Button variant="light" size="xl" className="mt-6" onClick={() => router.push(ctaHref)}>
           {ctaLabel}
         </Button>
       )}
@@ -158,8 +174,9 @@ export default function ActiveWorkoutPage() {
       setHistoryCache((prev) => ({ ...prev, [exerciseId]: entry }));
     });
   }, []);
-  // Only one exercise card expanded at a time; expanding one collapses whichever was open.
-  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null);
+  // Exercise in focus — set to the first unfinished one when the session loads.
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [exercisesSheetOpen, setExercisesSheetOpen] = useState(false);
 
   const [elapsed, setElapsed] = useState(0);
   // ISO timestamp of the most recently logged set (any exercise), or null
@@ -212,6 +229,14 @@ export default function ActiveWorkoutPage() {
           (grouped[s.workout_program_exercise_id] ??= []).push(s);
         }
         setSetsByExercise(grouped);
+        // Resuming mid-workout: start on the first exercise that still has
+        // planned sets left. Pinned here (not re-derived on every render) so
+        // finishing an exercise's last set doesn't yank the screen away.
+        const firstOpen = ex.find((e) => {
+          const done = (grouped[e.id] ?? []).filter((s) => s.parent_set_id == null).length;
+          return e.target_sets == null || done < e.target_sets;
+        });
+        setSelectedExerciseId((firstOpen ?? ex[0])?.id ?? null);
         if (existingSets.length > 0) {
           const latest = existingSets.reduce((max, s) =>
             new Date(s.created_at) > new Date(max.created_at) ? s : max,
@@ -368,10 +393,6 @@ export default function ActiveWorkoutPage() {
     0,
   );
 
-  function handleToggleExpand(exerciseId: string) {
-    setExpandedExerciseId((prev) => (prev === exerciseId ? null : exerciseId));
-  }
-
   function handleSetLogged(
     exerciseId: string,
     set: WorkoutSet,
@@ -396,7 +417,7 @@ export default function ActiveWorkoutPage() {
       const planExercise = await addAdhocExercise(workoutSession.id, ex.id);
       setExercises((prev) => [...prev, planExercise]);
       preloadHistories([planExercise.exercise?.id]);
-      setExpandedExerciseId(planExercise.id);
+      setSelectedExerciseId(planExercise.id);
       setAddExerciseOpen(false);
     } catch {
       toast.error("Failed to add exercise");
@@ -410,8 +431,12 @@ export default function ActiveWorkoutPage() {
     setFinishing(true);
     try {
       await finishWorkoutSession(workoutSession.id);
-      toast.success("Workout finished — nice work!");
-      router.push("/home");
+      if (pendingSyncCount > 0) {
+        toast.success("Workout finished — your sets will sync once you're back online.");
+        router.push("/home");
+      } else {
+        router.push(`/workout/history/${workoutSession.id}?completed=1`);
+      }
     } catch {
       toast.error("Failed to finish workout");
       setFinishing(false);
@@ -451,6 +476,7 @@ export default function ActiveWorkoutPage() {
   if (step === "pick-assignment") {
     return (
       <PickerList
+        eyebrow="Start workout"
         title="Which plan are you training?"
         items={activeAssignments}
         render={(a) => ({
@@ -472,6 +498,7 @@ export default function ActiveWorkoutPage() {
     }
     return (
       <PickerList
+        eyebrow={assignment?.program_name ?? "Start workout"}
         title="Which day are you doing?"
         items={days}
         render={(d) => ({ title: d.name, subtitle: `Day ${d.day_number}` })}
@@ -490,6 +517,7 @@ export default function ActiveWorkoutPage() {
     }
     return (
       <PickerList
+        eyebrow={day?.name ?? "Start workout"}
         title="Which session?"
         items={sessions}
         render={(s) => ({ title: s.name })}
@@ -499,133 +527,173 @@ export default function ActiveWorkoutPage() {
   }
 
   // step === "active"
-  return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider truncate">
-              {assignment?.program_name}
-            </p>
-            <h1 className="text-base font-bold text-foreground leading-tight truncate">
-              {day?.name}
-            </h1>
-          </div>
+  const summaries: SessionExerciseSummary[] = exercises.map((ex) => ({
+    id: ex.id,
+    name: ex.exercise?.name ?? "Exercise",
+    done: (setsByExercise[ex.id] ?? []).filter((s) => s.parent_set_id == null).length,
+    target: ex.target_sets,
+    isAdhoc: ex.exercise_order == null,
+  }));
+  const currentExerciseId = selectedExerciseId ?? summaries[0]?.id ?? null;
+  const inSessionExerciseIds = new Set(
+    exercises.map((ex) => ex.exercise?.id).filter((id): id is string => !!id),
+  );
 
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+        <div className="flex items-center gap-2.5 border-b border-line px-4 py-3">
+          <Link
+            href="/home"
+            aria-label="Minimise workout"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card"
+          >
+            <ChevronDown className="size-[18px]" />
+          </Link>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="label-caps truncate">{assignment?.program_name}</span>
+            <span className="truncate font-display text-xl leading-tight font-bold">{day?.name}</span>
+          </div>
           {lastSetAt && (
             <div className="flex flex-col items-center">
-              <span className="text-sm font-bold tabular-nums text-muted-foreground">
-                {formatDuration(sinceLastSet)}
-              </span>
-              <span className="text-[9px] text-muted-foreground/70 uppercase tracking-wider whitespace-nowrap">
-                since last set
-              </span>
+              <span className="num text-[17px] text-muted-foreground">{formatDuration(sinceLastSet)}</span>
+              <span className="text-[9px] font-semibold tracking-[0.08em] text-subtle uppercase">Since set</span>
             </div>
           )}
-
           <div className="flex flex-col items-center">
-            <span className="text-xl font-black tabular-nums text-foreground">
-              {formatDuration(elapsed)}
-            </span>
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              elapsed
-            </span>
+            <span className="num text-xl">{formatDuration(elapsed)}</span>
+            <span className="text-[9px] font-semibold tracking-[0.08em] text-subtle uppercase">Elapsed</span>
           </div>
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setShowFinishConfirm(true)}
-            className="rounded-xl font-semibold"
-          >
-            Finish
-          </Button>
-        </div>
-      </div>
-
-      {pendingSyncCount > 0 && (
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-amber-500/10 px-4 py-1.5 text-xs text-amber-600">
-          <span className="flex items-center gap-1.5">
-            <CloudOff className="size-3.5" />
-            {pendingSyncCount} set{pendingSyncCount !== 1 ? "s" : ""} not yet synced
-          </span>
           <button
             type="button"
-            onClick={() => flushWorkoutSetQueue()}
-            className="flex items-center gap-1 font-semibold hover:underline"
+            onClick={() => setShowFinishConfirm(true)}
+            className="h-10 shrink-0 rounded-full border border-danger-line bg-danger-surface px-3.5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/15"
           >
-            <RefreshCw className="size-3" />
-            Sync now
+            Finish
           </button>
         </div>
-      )}
 
-      <div className="flex items-center justify-around border-b border-border bg-card px-4 py-2">
-        <div className="flex flex-col items-center">
-          <span className="text-sm font-bold tabular-nums text-foreground">
-            {totalSetsLogged}
-          </span>
-          <span className="text-[10px] text-muted-foreground">sets logged</span>
-        </div>
-        <div className="h-6 w-px bg-border" />
-        <div className="flex flex-col items-center">
-          <span className="text-sm font-bold tabular-nums text-foreground">
-            {exercises.length}
-          </span>
-          <span className="text-[10px] text-muted-foreground">exercises</span>
-        </div>
+        {pendingSyncCount > 0 && (
+          <div className="flex items-center justify-between gap-2 bg-warning-surface px-4 py-1.5 text-[13px] font-semibold text-warning">
+            <span className="flex items-center gap-1.5">
+              <CloudOff className="size-3.5" />
+              {pendingSyncCount} set{pendingSyncCount !== 1 ? "s" : ""} not yet synced
+            </span>
+            <button
+              type="button"
+              onClick={() => flushWorkoutSetQueue()}
+              className="flex min-h-8 items-center gap-1 font-bold hover:underline"
+            >
+              <RefreshCw className="size-3" />
+              Sync now
+            </button>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {restVisible && (
+            <RestTimer
+              key={restKey}
+              initialSeconds={restDuration}
+              onSkip={() => setRestVisible(false)}
+              onFinish={() => setRestVisible(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
-      <div className="flex flex-col gap-3 px-4 py-4 pb-32">
+      <div className="flex flex-col gap-[18px] px-4 pt-3.5 pb-32">
+        <div className="flex items-center gap-2">
+          <div className="-mx-1 flex min-w-0 flex-1 gap-2 overflow-x-auto px-1 py-0.5 scrollbar-none">
+            {summaries.map((ex, i) => {
+              const selected = ex.id === currentExerciseId;
+              const complete = ex.target != null && ex.done >= ex.target;
+              return (
+                <button
+                  key={ex.id}
+                  type="button"
+                  onClick={() => setSelectedExerciseId(ex.id)}
+                  aria-label={`${ex.name}, ${ex.done}${ex.target != null ? ` of ${ex.target}` : ""} sets${selected ? ", current" : ""}`}
+                  aria-current={selected ? "true" : undefined}
+                  className={cn("shrink-0 rounded-full", selected && "bg-track-primary")}
+                >
+                  <ProgressRing
+                    value={exerciseProgress(ex)}
+                    size={44}
+                    stroke={4}
+                    tone={complete ? "success" : "primary"}
+
+                  >
+                    <span className={cn("text-[15px] font-bold", selected ? "text-foreground" : "text-muted-foreground")}>
+                      {i + 1}
+                    </span>
+                  </ProgressRing>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setExercisesSheetOpen(true)}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-[13px] font-semibold"
+          >
+            All
+            <ListIcon className="size-3.5" />
+          </button>
+        </div>
+
         {workoutSession &&
           exercises.map((ex, i) => (
-            <motion.div
-              key={ex.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: i * 0.05 }}
-            >
+            // Every card stays mounted (only the current one is shown) so each
+            // keeps its in-progress form, edits and drop rows when switching.
+            <div key={ex.id} hidden={ex.id !== currentExerciseId}>
               <ExerciseLogCard
                 exercise={ex}
+                position={i + 1}
+                total={exercises.length}
                 workoutSessionId={workoutSession.id}
                 initialSets={setsByExercise[ex.id] ?? []}
                 history={ex.exercise ? historyCache[ex.exercise.id] : undefined}
-                isExpanded={expandedExerciseId === ex.id}
-                onToggleExpand={() => handleToggleExpand(ex.id)}
-                onSetLogged={(set, dropSets, restSeconds) =>
-                  handleSetLogged(ex.id, set, dropSets, restSeconds)
-                }
+                onSetLogged={(set, dropSets, restSeconds) => handleSetLogged(ex.id, set, dropSets, restSeconds)}
               />
-            </motion.div>
+            </div>
           ))}
 
-        <button
-          type="button"
-          onClick={() => setAddExerciseOpen(true)}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-        >
-          <Plus className="size-4" />
-          Add exercise
-        </button>
+        {exercises.length === 0 && (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-input px-6 py-10 text-center">
+            <p className="text-sm text-muted-foreground">This session has no exercises yet.</p>
+            <Button variant="light" size="xl" onClick={() => setAddExerciseOpen(true)}>
+              <Plus />
+              Add exercise
+            </Button>
+          </div>
+        )}
       </div>
+
+      <SessionExercisesSheet
+        open={exercisesSheetOpen}
+        title={day?.name ?? "Exercises"}
+        exercises={summaries}
+        selectedId={currentExerciseId}
+        onSelect={(id) => {
+          setSelectedExerciseId(id);
+          setExercisesSheetOpen(false);
+          window.scrollTo({ top: 0 });
+        }}
+        onAddExercise={() => {
+          setExercisesSheetOpen(false);
+          setAddExerciseOpen(true);
+        }}
+        onClose={() => setExercisesSheetOpen(false)}
+      />
 
       <AddExerciseSheet
         open={addExerciseOpen}
         busy={addingExercise}
+        inSessionExerciseIds={inSessionExerciseIds}
         onClose={() => setAddExerciseOpen(false)}
         onPick={handleAddExercise}
       />
-
-      <AnimatePresence>
-        {restVisible && (
-          <RestTimer
-            key={restKey}
-            initialSeconds={restDuration}
-            onSkip={() => setRestVisible(false)}
-            onFinish={() => setRestVisible(false)}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showFinishConfirm && (
@@ -633,7 +701,7 @@ export default function ActiveWorkoutPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/70"
             onClick={() => setShowFinishConfirm(false)}
           >
             <motion.div
@@ -642,32 +710,49 @@ export default function ActiveWorkoutPage() {
               exit={{ y: 100, opacity: 0 }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-t-3xl bg-card p-6 ring-1 ring-foreground/10"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="finish-title"
+              className="w-full max-w-md rounded-t-3xl border-t border-input bg-card px-4 pt-2.5 pb-6"
             >
-              <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-border" />
-              <h2 className="text-lg font-bold text-foreground">Finish workout?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                You&apos;ve logged {totalSetsLogged} set{totalSetsLogged !== 1 ? "s" : ""}{" "}
-                in {formatDuration(elapsed)}.
-              </p>
-
+              <div className="mx-auto mb-4 h-1 w-11 rounded-full bg-input" />
+              <h2 id="finish-title" className="font-display text-2xl font-bold">
+                Finish workout?
+              </h2>
+              <div className="mt-4 grid grid-cols-3 border-y border-line">
+                <div className="flex flex-col items-center gap-1 py-3">
+                  <span className="num text-[26px]">{formatDuration(elapsed)}</span>
+                  <span className="label-caps">Duration</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 border-x border-line py-3">
+                  <span className="num text-[26px]">{totalSetsLogged}</span>
+                  <span className="label-caps">Sets</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 py-3">
+                  <span className="num text-[26px]">
+                    {summaries.filter((s) => s.done > 0).length}/{summaries.length}
+                  </span>
+                  <span className="label-caps">Exercises</span>
+                </div>
+              </div>
+              {pendingSyncCount > 0 && (
+                <p className="mt-3 text-[13px] text-warning">
+                  {pendingSyncCount} set{pendingSyncCount !== 1 ? "s" : ""} still syncing — they&apos;ll upload
+                  once you&apos;re back online.
+                </p>
+              )}
               <div className="mt-5 flex gap-3">
                 <Button
                   variant="outline"
-                  className="flex-1 h-12 rounded-xl"
+                  className="h-13 flex-1 rounded-xl text-base font-semibold"
                   onClick={() => setShowFinishConfirm(false)}
                   disabled={finishing}
                 >
                   Resume
                 </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1 h-12 rounded-xl font-semibold"
-                  onClick={handleFinish}
-                  disabled={finishing}
-                >
-                  {finishing && <Loader2 className="size-4 animate-spin" />}
-                  Finish workout
+                <Button variant="light" size="xl" className="flex-1" onClick={handleFinish} disabled={finishing}>
+                  {finishing && <Loader2 className="animate-spin" />}
+                  Finish
                 </Button>
               </div>
             </motion.div>

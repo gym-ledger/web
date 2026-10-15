@@ -7,9 +7,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-barlow);
+  --font-mono: var(--font-barlow-condensed);
+  --font-heading: var(--font-barlow-condensed);
+  /* Condensed face for big numbers, headings and buttons — see docs/DESIGN_SYSTEMS.md */
+  --font-display: var(--font-barlow-condensed);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +41,21 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Semantic data colours — each metric type keeps one colour everywhere. */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-subtle: var(--subtle-foreground);
+  --color-line: var(--line);
+  --color-track-primary: var(--track-primary);
+  --color-track-success: var(--track-success);
+  --color-track-warning: var(--track-warning);
+  /* Tinted surfaces + borders for state cards (PRs, homework, alarms). */
+  --color-success-surface: var(--success-surface);
+  --color-success-line: var(--success-line);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-line: var(--warning-line);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-line: var(--danger-line);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -48,74 +65,58 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/*
+ * Performance Dark. The app always renders dark (the `dark` class is
+ * hardcoded on <html>), so :root carries the same values — anything that
+ * escapes the .dark scope (portals, toasts) still matches.
+ */
+:root,
 .dark {
-  --background: oklch(0.09 0 0);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.14 0 0);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.14 0 0);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.62 0.22 258);
-  --primary-foreground: oklch(0.97 0 0);
-  --secondary: oklch(0.18 0 0);
-  --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.58 0 0);
-  --accent: oklch(0.18 0 0);
-  --accent-foreground: oklch(0.96 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 7%);
-  --input: oklch(1 0 0 / 22%);
-  --ring: oklch(0.62 0.22 258);
-  --radius: 0.875rem;
-  --chart-1: oklch(0.62 0.22 258);
-  --chart-2: oklch(0.72 0.18 200);
-  --chart-3: oklch(0.65 0.20 300);
-  --chart-4: oklch(0.70 0.18 140);
-  --chart-5: oklch(0.60 0.22 30);
-  --sidebar: oklch(0.14 0 0);
-  --sidebar-foreground: oklch(0.96 0 0);
-  --sidebar-primary: oklch(0.62 0.22 258);
-  --sidebar-primary-foreground: oklch(0.97 0 0);
-  --sidebar-accent: oklch(0.18 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(1 0 0 / 7%);
-  --sidebar-ring: oklch(0.62 0.22 258);
+  --background: #000000;
+  --foreground: #f2f5f7;
+  --card: #0d1215;
+  --card-foreground: #f2f5f7;
+  --popover: #0d1215;
+  --popover-foreground: #f2f5f7;
+  --primary: #3b8cff;
+  --primary-foreground: #000000;
+  --secondary: #161d21;
+  --secondary-foreground: #f2f5f7;
+  --muted: #12181c;
+  --muted-foreground: #8a979f;
+  --subtle-foreground: #6b777f;
+  --accent: #161d21;
+  --accent-foreground: #f2f5f7;
+  --destructive: #ff6b6e;
+  --success: #3bda7a;
+  --warning: #ffb020;
+  --track-primary: #111c2b;
+  --track-success: #14231a;
+  --track-warning: #2a2110;
+  --success-surface: #0b1a11;
+  --success-line: #1c3a26;
+  --warning-surface: #1f1806;
+  --warning-line: #4a3a12;
+  --danger-surface: #1a0b0c;
+  --danger-line: #5a1e22;
+  --border: #1c2429;
+  --line: #161d21;
+  --input: #222b31;
+  --ring: #3b8cff;
+  --radius: 0.75rem;
+  --chart-1: #3b8cff;
+  --chart-2: #3bda7a;
+  --chart-3: #ffb020;
+  --chart-4: #ff6b6e;
+  --chart-5: #8a979f;
+  --sidebar: #0d1215;
+  --sidebar-foreground: #f2f5f7;
+  --sidebar-primary: #3b8cff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #161d21;
+  --sidebar-accent-foreground: #f2f5f7;
+  --sidebar-border: #1c2429;
+  --sidebar-ring: #3b8cff;
 }
 
 @layer base {
@@ -129,6 +130,31 @@
 
   html {
     @apply font-sans;
+  }
+}
+
+/* Small uppercase metric label: "SESSIONS", "REST", "WEIGHT KG". */
+@utility label-caps {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+
+/* Big numbers: weights, reps, timers, stats. */
+@utility num {
+  font-family: var(--font-barlow-condensed);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 

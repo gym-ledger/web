@@ -88,17 +88,17 @@ export function MuscleBodyMap() {
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+      <div className="rounded-2xl bg-card p-4 border border-border">
         <p className="text-sm text-destructive">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10">
+    <div className="rounded-2xl bg-card p-4 border border-border">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-foreground">Muscle Map</h3>
-        <div className="flex items-center gap-1 rounded-xl bg-secondary p-1">
+        <h3 className="label-caps">Muscle map</h3>
+        <div className="flex items-center rounded-full border border-input bg-background p-1">
           {MODES.map((m) => (
             <button
               key={m.value}
@@ -108,10 +108,10 @@ export function MuscleBodyMap() {
                 setSelected(null);
               }}
               className={cn(
-                "rounded-lg px-3 py-1 text-xs font-medium transition-colors",
+                "min-h-8 rounded-full px-3 text-xs font-bold transition-colors",
                 mode === m.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-secondary-foreground hover:text-foreground",
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {m.label}
@@ -131,7 +131,7 @@ export function MuscleBodyMap() {
             <BodyChartView view={ViewSide.BACK} bodyState={bodyState} onMuscleClick={handleMuscleClick} />
           </div>
 
-          <div className="mt-2 flex h-8 items-center justify-center rounded-xl bg-secondary/40 px-3 text-center text-xs text-muted-foreground">
+          <div className="mt-2 flex min-h-9 items-center justify-center rounded-xl bg-background px-3 text-center text-[13px] text-muted-foreground">
             {selected
               ? `${selected.name} — ${Math.round(selected.percent)}% ${mode}`
               : hasAnySignal

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { fetchOngoingWorkoutSession, type OngoingWorkoutSession } from "@/lib/api/workout";
 
 function formatElapsed(startedAtIso: string) {
@@ -36,27 +36,24 @@ export function OngoingWorkoutBanner() {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={() => router.push("/workout/active")}
-      className="flex w-full items-center gap-3 rounded-2xl p-4 text-left shadow-lg ring-1 ring-white/10 transition-transform active:scale-[0.98]"
-      style={{ backgroundColor: "oklch(0.28 0.10 258)" }}
+      className="flex w-full items-center gap-4 rounded-2xl border border-primary bg-card p-4 text-left transition-transform active:scale-[0.98]"
     >
-      <div className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
-        <span className="absolute inline-flex size-3 animate-ping rounded-full bg-emerald-400 opacity-75" />
-        <Play className="relative size-5 fill-white text-white" />
-      </div>
+      <span className="relative flex size-3 shrink-0">
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
+        <span className="relative inline-flex size-3 rounded-full bg-primary" />
+      </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-white/70">
-          Workout in progress
-        </p>
-        <h3 className="truncate text-sm font-bold text-white">
+        <p className="label-caps text-primary">Workout in progress</p>
+        <h3 className="truncate font-display text-[22px] leading-tight font-bold">
           {session.day_name ?? session.program_name}
           {session.session_name ? ` · ${session.session_name}` : ""}
         </h3>
-        <p className="mt-0.5 text-xs text-white/70">{formatElapsed(session.started_at)}</p>
+        <p className="text-[13px] text-muted-foreground">{formatElapsed(session.started_at)}</p>
       </div>
-      <div className="flex items-center gap-1 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold text-white">
+      <span className="flex shrink-0 items-center gap-1 font-display text-base font-bold tracking-[0.08em] uppercase">
         Resume
-        <ArrowRight className="size-3.5" />
-      </div>
+        <ArrowRight className="size-4" />
+      </span>
     </motion.button>
   );
 }

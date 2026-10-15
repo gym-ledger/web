@@ -10,12 +10,12 @@ import {
   type WorkoutSessionListItem,
 } from "@/lib/api/workout";
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+function formatWeekday(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { weekday: "short" });
+}
+
+function formatMonth(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 
 function formatDuration(startIso: string, endIso: string | null) {
@@ -26,42 +26,45 @@ function formatDuration(startIso: string, endIso: string | null) {
   return `${minutes}min`;
 }
 
-function SessionCard({ session, delay }: { session: WorkoutSessionListItem; delay: number }) {
+function SessionRow({ session, delay }: { session: WorkoutSessionListItem; delay: number }) {
   const duration = formatDuration(session.started_at, session.completed_at);
 
   return (
-    <Link href={`/workout/history/${session.id}`}>
+    <Link href={`/workout/history/${session.id}`} className="block border-b border-line">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay }}
-        className="flex items-center gap-3 rounded-2xl bg-card p-4 ring-1 ring-foreground/10 hover:bg-secondary/40 transition-colors"
+        className="flex items-center gap-3 py-3.5"
       >
+        <div className="flex w-12 shrink-0 flex-col items-center">
+          <span className="label-caps text-[10px]">{formatWeekday(session.started_at)}</span>
+          <span className="num text-[26px]">{new Date(session.started_at).getDate()}</span>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-foreground truncate">
-              {session.day_name ?? "Workout"}
-            </h3>
+            <h3 className="truncate font-display text-xl leading-tight font-bold">{session.day_name ?? "Workout"}</h3>
             {!session.completed_at && (
-              <span className="shrink-0 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+              <span className="shrink-0 rounded-md bg-warning-surface px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-warning uppercase">
                 In progress
               </span>
             )}
           </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          <p className="truncate text-[13px] text-muted-foreground">
             {session.plan_name}
             {session.session_name ? ` · ${session.session_name}` : ""}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatDate(session.started_at)}
-            {" · "}
-            {session.total_exercises} exercise{session.total_exercises !== 1 ? "s" : ""}
-            {" · "}
-            {session.total_sets} set{session.total_sets !== 1 ? "s" : ""}
-            {duration ? ` · ${duration}` : ""}
-          </p>
         </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex shrink-0 flex-col items-end">
+          <span className="num text-lg">
+            {session.total_sets}
+            <span className="text-[13px] text-muted-foreground"> sets</span>
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {session.total_exercises} ex{duration ? ` · ${duration}` : ""}
+          </span>
+        </div>
+        <ChevronRight className="size-4 shrink-0 text-subtle" />
       </motion.div>
     </Link>
   );
@@ -99,8 +102,8 @@ export default function WorkoutHistoryPage() {
   }
 
   return (
-    <div className="flex flex-col px-4 pt-4 pb-8">
-      <PageHeader title="Workout History" />
+    <div className="flex flex-col px-4 pb-8">
+      <PageHeader title="History" subtitle="Past workouts" />
 
       {loading ? (
         <div className="flex min-h-[40vh] items-center justify-center">
@@ -108,22 +111,29 @@ export default function WorkoutHistoryPage() {
         </div>
       ) : sessions.length === 0 ? (
         <div className="flex min-h-[40vh] flex-col items-center justify-center px-6 text-center">
-          <p className="text-sm font-semibold text-foreground">No workouts yet</p>
+          <p className="font-display text-2xl font-bold">No workouts yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Once you finish a workout, it&apos;ll show up here.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {sessions.map((session, i) => (
-            <SessionCard key={session.id} session={session} delay={i * 0.03} />
-          ))}
+        <div className="flex flex-col">
+          {sessions.map((session, i) => {
+            const month = formatMonth(session.started_at);
+            const showMonth = i === 0 || formatMonth(sessions[i - 1].started_at) !== month;
+            return (
+              <div key={session.id}>
+                {showMonth && <h2 className="label-caps border-b border-line pt-4 pb-2">{month}</h2>}
+                <SessionRow session={session} delay={Math.min(i, 10) * 0.03} />
+              </div>
+            );
+          })}
           {page < totalPages && (
             <button
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="mt-1 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+              className="mt-4 flex h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-semibold text-primary transition-colors hover:border-primary disabled:opacity-50"
             >
               {loadingMore && <Loader2 className="size-4 animate-spin" />}
               Load more

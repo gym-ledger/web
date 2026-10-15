@@ -11,7 +11,7 @@ export function Sparkline({
   data,
   width = 120,
   height = 40,
-  color = "oklch(0.62 0.22 258)",
+  color = "var(--primary)",
 }: SparklineProps) {
   if (data.length < 2) return null;
 
@@ -38,13 +38,7 @@ export function Sparkline({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        <linearGradient id="sparkline-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.03" />
-        </linearGradient>
-      </defs>
-      <path d={areaD} fill="url(#sparkline-gradient)" />
+      <path d={areaD} fill={color} fillOpacity={0.08} />
       <path
         d={pathD}
         stroke={color}
@@ -75,7 +69,7 @@ export function LineChart({
   data,
   width = 300,
   height = 100,
-  color = "oklch(0.62 0.22 258)",
+  color = "var(--primary)",
   showLabels = true,
 }: LineChartProps) {
   const paddingBottom = showLabels ? 20 : 8;
@@ -104,13 +98,6 @@ export function LineChart({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        <linearGradient id="line-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-
       {/* Grid lines */}
       {[0.25, 0.5, 0.75].map((ratio) => (
         <line
@@ -119,12 +106,12 @@ export function LineChart({
           y1={chartHeight * ratio}
           x2={width}
           y2={chartHeight * ratio}
-          stroke="oklch(1 0 0 / 6%)"
+          stroke="var(--line)"
           strokeWidth="1"
         />
       ))}
 
-      <path d={areaD} fill="url(#line-gradient)" />
+      <path d={areaD} fill={color} fillOpacity={0.08} />
       <path
         d={pathD}
         stroke={color}
@@ -150,8 +137,9 @@ export function LineChart({
               x={p.x}
               y={height - 2}
               textAnchor="middle"
-              fontSize="9"
-              fill="oklch(0.58 0 0)"
+              fontSize="10"
+              fontWeight="600"
+              fill="var(--muted-foreground)"
             >
               {p.label}
             </text>
@@ -168,10 +156,10 @@ interface BarChartProps {
 
 export function BarChart({
   data,
-  color = "oklch(0.62 0.22 258)",
+  color = "var(--primary)",
   height = 80,
 }: BarChartProps) {
-  const max = Math.max(...data.map((d) => d.value));
+  const max = Math.max(...data.map((d) => d.value)) || 1;
   const barWidth = 100 / data.length;
 
   return (
@@ -182,13 +170,13 @@ export function BarChart({
         return (
           <div key={i} className="flex flex-1 flex-col items-center gap-1">
             <div
-              className="w-full rounded-t-md transition-all"
+              className="w-full rounded-[4px] transition-all"
               style={{
-                height: barH,
-                background: isLast ? color : `oklch(0.62 0.22 258 / 35%)`,
+                height: Math.max(barH, 4),
+                background: isLast ? color : "var(--track-primary)",
               }}
             />
-            <span className="text-[9px] text-muted-foreground">{d.label}</span>
+            <span className="text-[10px] font-semibold text-muted-foreground">{d.label}</span>
           </div>
         );
       })}

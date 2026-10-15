@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, ChevronRight, Dumbbell, Loader2 } from "lucide-react";
+import { Search, ChevronRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
 import { fetchExercises, fetchMuscles, type ExerciseListItem, type Muscle } from "@/lib/api/exercises";
@@ -107,21 +107,21 @@ export default function ExercisesPage() {
   }
 
   return (
-    <div className="flex flex-col pt-4">
+    <div className="flex flex-col">
       <div className="px-4">
-        <PageHeader title="Exercises" subtitle={isPending ? "Loading…" : `${totalCount} exercises`} />
+        <PageHeader title="Library" subtitle={isPending ? "Loading…" : `${totalCount} exercises`} />
       </div>
 
       {/* Sticky search + filters */}
-      <div className="sticky top-0 z-30 bg-background px-4 pb-3 pt-1">
+      <div className="sticky top-0 z-30 border-b border-line bg-background/95 px-4 pt-1 pb-3 backdrop-blur-sm">
         <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Search className="absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search exercises..."
             value={rawQuery}
             onChange={(e) => setRawQuery(e.target.value)}
-            className="h-11 rounded-xl pl-9 text-base"
+            className="h-12 rounded-[14px] pl-10 text-base"
           />
         </div>
 
@@ -130,10 +130,10 @@ export default function ExercisesPage() {
             <button
               onClick={() => setActiveBodyRegion(null)}
               className={cn(
-                "shrink-0 rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors",
+                "min-h-9 shrink-0 rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
                 activeBodyRegion === null
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-input bg-card text-muted-foreground hover:text-foreground"
               )}
             >
               All
@@ -143,10 +143,10 @@ export default function ExercisesPage() {
                 key={region}
                 onClick={() => setActiveBodyRegion(region)}
                 className={cn(
-                  "shrink-0 rounded-xl px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  "min-h-9 shrink-0 rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
                   activeBodyRegion === region
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/70"
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-input bg-card text-muted-foreground hover:text-foreground"
                 )}
               >
                 {titleCase(region)}
@@ -157,7 +157,7 @@ export default function ExercisesPage() {
       </div>
 
       {/* Exercise list */}
-      <div className="flex flex-col gap-2 px-4 pb-4">
+      <div className="flex flex-col px-4 pb-4">
         {error ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
             <p className="text-sm text-destructive">{error}</p>
@@ -168,7 +168,6 @@ export default function ExercisesPage() {
           </div>
         ) : exercises.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16 text-center">
-            <Search className="size-8 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
               No exercises found{query ? ` for "${query}"` : ""}
             </p>
@@ -184,25 +183,18 @@ export default function ExercisesPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.18, delay: Math.min(i * 0.03, 0.3) }}
                 >
-                  <Link href={`/exercises/${ex.id}`}>
-                    <div className="flex items-center gap-3 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 hover:ring-primary/30 transition-all">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
-                        <Dumbbell className="size-5 text-muted-foreground" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">
-                          {ex.name}
-                        </p>
+                  <Link href={`/exercises/${ex.id}`} className="block border-b border-line">
+                    <div className="flex min-h-16 items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-base font-bold">{ex.name}</p>
                         {top && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
+                          <p className="text-[13px] text-muted-foreground">
                             {top.name}
                             {ex.muscles.length > 1 && ` +${ex.muscles.length - 1} more`}
                           </p>
                         )}
                       </div>
-
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      <ChevronRight className="size-4 shrink-0 text-subtle" />
                     </div>
                   </Link>
                 </motion.div>
@@ -214,7 +206,7 @@ export default function ExercisesPage() {
                 type="button"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="mt-2 flex h-10 items-center justify-center gap-2 rounded-xl bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-secondary/80 disabled:opacity-50"
+                className="mt-4 flex h-12 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-semibold text-primary transition-colors hover:border-primary disabled:opacity-50"
               >
                 {loadingMore && <Loader2 className="size-3.5 animate-spin" />}
                 Load more

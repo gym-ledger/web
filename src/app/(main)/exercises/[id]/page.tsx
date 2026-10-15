@@ -4,7 +4,7 @@ import { use, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Trophy, BarChart2, Calendar, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { LineChart } from "@/components/progress/mini-chart";
 import { fetchExerciseById, type ExerciseDetail } from "@/lib/api/exercises";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
@@ -100,162 +100,145 @@ export default function ExerciseDetailPage({
   const muscles = [...exercise.muscles].sort((a, b) => b.contribution - a.contribution);
 
   return (
-    <div className="flex flex-col min-h-screen pb-4">
-      {/* Header */}
-      <div className="sticky top-0 z-30 border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Link href="/exercises">
-            <button className="flex size-9 items-center justify-center rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
-              <ArrowLeft className="size-4 text-foreground" />
-            </button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base font-bold text-foreground truncate">{exercise.name}</h1>
-            {muscles[0] && (
-              <p className="text-xs text-muted-foreground">{muscles[0].name}</p>
-            )}
-          </div>
-        </div>
+    <div className="flex min-h-screen flex-col pb-4">
+      <div className="sticky top-0 z-30 border-b border-line bg-background/95 px-4 py-2 backdrop-blur-sm">
+        <Link
+          href="/exercises"
+          className="flex min-h-11 w-fit items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Library
+        </Link>
       </div>
 
-      <div className="flex flex-col gap-5 px-4 pt-5">
-        {/* Muscles worked */}
-        {muscles.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl bg-card ring-1 ring-foreground/10 p-4"
-          >
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
-              Muscles worked
-            </h2>
-            <div className="flex flex-col gap-2.5">
-              {muscles.map((m, i) => (
-                <div key={m.id} className="flex items-center gap-3">
-                  <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                    {Math.round(m.contribution * 100)}%
-                  </span>
-                  <div className="h-1.5 flex-1 rounded-full bg-secondary overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full", i === 0 ? "bg-primary" : "bg-primary/50")}
-                      style={{ width: `${Math.round(m.contribution * 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-28 shrink-0 text-sm text-foreground truncate">{m.name}</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+      <div className="flex flex-col gap-6 px-4 pt-5">
+        <div className="flex flex-col gap-1">
+          {muscles[0] && <span className="label-caps text-primary">{muscles[0].name}</span>}
+          <h1 className="font-display text-[34px] leading-none font-bold">{exercise.name}</h1>
+        </div>
 
-        {/* Stats */}
         {sessionsCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.06 }}
-            className="grid grid-cols-3 gap-3"
+            className="grid grid-cols-3 border-y border-line"
           >
-            <div className="flex flex-col gap-1.5 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 text-center">
-              <Trophy className="size-4 text-primary mx-auto" />
-              <p className="text-lg font-black text-foreground tabular-nums">{bestWeight}kg</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Best weight</p>
+            <div className="flex flex-col items-center gap-1 py-3">
+              <span className="num text-[26px]">
+                {bestWeight}
+                <span className="text-sm text-muted-foreground">kg</span>
+              </span>
+              <span className="label-caps text-[10px]">Best load</span>
             </div>
-            <div className="flex flex-col gap-1.5 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 text-center">
-              <BarChart2 className="size-4 text-primary mx-auto" />
-              <p className="text-lg font-black text-foreground tabular-nums">
-                {(totalVolume / 1000).toFixed(1)}t
-              </p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Volume (last {sessionsCount})</p>
+            <div className="flex flex-col items-center gap-1 border-x border-line py-3">
+              <span className="num text-[26px]">
+                {(totalVolume / 1000).toFixed(1)}
+                <span className="text-sm text-muted-foreground">t</span>
+              </span>
+              <span className="label-caps text-[10px]">Vol · last {sessionsCount}</span>
             </div>
-            <div className="flex flex-col gap-1.5 rounded-2xl bg-card p-3.5 ring-1 ring-foreground/10 text-center">
-              <Calendar className="size-4 text-primary mx-auto" />
-              <p className="text-lg font-black text-foreground tabular-nums">{sessionsCount}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">Recent sessions</p>
+            <div className="flex flex-col items-center gap-1 py-3">
+              <span className="num text-[26px]">{sessionsCount}</span>
+              <span className="label-caps text-[10px]">Sessions</span>
             </div>
           </motion.div>
         )}
 
-        {/* Max weight chart */}
         {chartData.length >= 2 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
+            transition={{ delay: 0.06 }}
+            className="rounded-2xl border border-border bg-card p-4"
           >
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-bold text-foreground">Max weight progress</h2>
-              <span className="text-xs text-muted-foreground">Last {chartData.length} sessions</span>
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="label-caps">Top load per session</h2>
+              <span className="text-xs text-muted-foreground">Last {chartData.length}</span>
             </div>
             <LineChart data={chartData} height={90} />
           </motion.div>
         )}
 
-        {/* Description */}
+        {muscles.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="flex flex-col gap-2.5"
+          >
+            <h2 className="label-caps">Muscles worked</h2>
+            {muscles.map((m, i) => (
+              <div key={m.id} className="grid grid-cols-[110px_minmax(0,1fr)_40px] items-center gap-2.5 text-sm">
+                <span className="truncate">{m.name}</span>
+                <div className="h-2 overflow-hidden rounded-full bg-track-primary">
+                  <div
+                    className={cn("h-full rounded-full", i === 0 ? "bg-primary" : "bg-primary/60")}
+                    style={{ width: `${Math.round(m.contribution * 100)}%` }}
+                  />
+                </div>
+                <span className="text-right font-semibold tabular-nums">{Math.round(m.contribution * 100)}%</span>
+              </div>
+            ))}
+          </motion.section>
+        )}
+
         {exercise.description && (
-          <motion.div
+          <motion.section
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 }}
-            className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
+            className="flex flex-col gap-2"
           >
-            <h2 className="text-sm font-bold text-foreground mb-2">About</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {exercise.description}
-            </p>
-          </motion.div>
+            <h2 className="label-caps">About</h2>
+            <p className="text-[15px] leading-relaxed text-muted-foreground">{exercise.description}</p>
+          </motion.section>
         )}
 
-        {/* Session history */}
         {sessionsCount > 0 && (
-          <motion.div
+          <motion.section
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
-            className="rounded-2xl bg-card ring-1 ring-foreground/10 overflow-hidden"
+            transition={{ delay: 0.16 }}
+            className="flex flex-col"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-sm font-bold text-foreground">Session history</h2>
+            <div className="flex items-baseline justify-between border-b border-input pb-2">
+              <h2 className="label-caps">Session history</h2>
               <span className="text-xs text-muted-foreground">Last {sessionsCount}</span>
             </div>
-            {history.map((session, i) => {
+            {history.map((session) => {
               const mains = groupSetsWithDropsets(session.sets).map((g) => g.main);
               const maxLoad = mains.reduce((m, s) => Math.max(m, load(s.weight, s.tool_weight)), 0);
               return (
                 <div
                   key={session.workout_session_id}
-                  className={cn(
-                    "flex items-center justify-between px-4 py-3",
-                    i < history.length - 1 && "border-b border-border/50"
-                  )}
+                  className="flex items-center justify-between gap-3 border-b border-line py-3"
                 >
-                  <div>
-                    <p className="text-xs font-semibold text-foreground">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">
                       {new Date(session.started_at).toLocaleDateString("en-GB", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",
                       })}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{mains.length} sets</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {mains.length} sets · {session.plan_name}
+                    </p>
                   </div>
-                  <span className="text-sm font-bold tabular-nums text-foreground">
+                  <span className="num shrink-0 text-xl">
                     {maxLoad}
-                    <span className="text-xs font-normal text-muted-foreground">kg</span>
+                    <span className="text-[13px] text-muted-foreground">kg top</span>
                   </span>
                 </div>
               );
             })}
-          </motion.div>
+          </motion.section>
         )}
 
         {sessionsCount === 0 && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              You haven&apos;t logged this exercise yet.
-            </p>
-          </div>
+          <p className="rounded-2xl border border-dashed border-input py-8 text-center text-sm text-muted-foreground">
+            You haven&apos;t logged this exercise yet.
+          </p>
         )}
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Scale, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { ChevronRight, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { motion } from "framer-motion";
 import { Sparkline } from "@/components/progress/mini-chart";
 import { fetchWeightForDate, WeightEntry } from "@/lib/api/weight";
@@ -18,30 +18,28 @@ function subDays(days: number) {
 }
 
 function fmtWeight(w: number) {
-  console.log('w', w)
-  console.log(typeof w)
   return w % 1 === 0 ? `${w}` : w.toFixed(1);
 }
 
 function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta === null) return <span className="text-xs text-muted-foreground">—</span>;
+  if (delta === null) return <span className="text-sm text-muted-foreground">—</span>;
   const abs = Math.abs(delta).toFixed(1);
   if (delta < 0)
     return (
-      <span className="flex items-center gap-0.5 text-xs font-medium text-emerald-500">
+      <span className="flex items-center gap-0.5 text-sm font-semibold text-success">
         <TrendingDown className="size-3" />
         {abs} kg
       </span>
     );
   if (delta > 0)
     return (
-      <span className="flex items-center gap-0.5 text-xs font-medium text-rose-400">
+      <span className="flex items-center gap-0.5 text-sm font-semibold text-warning">
         <TrendingUp className="size-3" />
         {abs} kg
       </span>
     );
   return (
-    <span className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
+    <span className="flex items-center gap-0.5 text-sm font-semibold text-muted-foreground">
       <Minus className="size-3" />
       0 kg
     </span>
@@ -81,67 +79,54 @@ export function WeightHomeWidget() {
   }
 
   if (loading) {
-    return (
-      <div className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 animate-pulse h-28" />
-    );
+    return <div className="h-[104px] animate-pulse rounded-2xl border border-border bg-card" />;
   }
 
   if (entries.length === 0) {
     return (
       <motion.button
+        type="button"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={handleClick}
-        className="w-full rounded-2xl bg-card p-4 ring-1 ring-foreground/10 flex items-center gap-3 text-left hover:bg-secondary/50 transition-colors"
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-input p-4 text-left transition-colors hover:bg-card"
       >
-        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 shrink-0">
-          <Scale className="size-5 text-primary" />
-        </div>
         <div>
-          <p className="text-sm font-semibold text-foreground">Track your weight</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Tap to log your first entry</p>
+          <p className="text-[15px] font-semibold">Track your body weight</p>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">Log your first entry to see the trend.</p>
         </div>
+        <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
       </motion.button>
     );
   }
 
   return (
     <motion.button
+      type="button"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={handleClick}
-      className="w-full rounded-2xl bg-card p-4 ring-1 ring-foreground/10 text-left hover:bg-secondary/50 transition-colors"
+      className="w-full rounded-2xl border border-border bg-card p-4 text-left transition-colors hover:bg-secondary/60"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10">
-            <Scale className="size-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground leading-none">Body weight</p>
-            <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-xl font-black text-foreground tabular-nums">
-                {fmtWeight(latest!.weight)}
-              </span>
-              <span className="text-xs font-medium text-muted-foreground">kg</span>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="num text-[34px]">
+            {fmtWeight(latest!.weight)}
+            <span className="ml-1 text-base text-muted-foreground">kg</span>
+          </p>
+          <div className="mt-2 flex gap-5">
+            <div>
+              <p className="label-caps text-[10px]">7 days</p>
+              <DeltaBadge delta={delta7} />
+            </div>
+            <div>
+              <p className="label-caps text-[10px]">30 days</p>
+              <DeltaBadge delta={delta30} />
             </div>
           </div>
         </div>
 
-        {sparkValues.length >= 2 && (
-          <Sparkline data={sparkValues} width={80} height={36} />
-        )}
-      </div>
-
-      <div className="flex gap-4 mt-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground">7-day</p>
-          <DeltaBadge delta={delta7} />
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground">30-day</p>
-          <DeltaBadge delta={delta30} />
-        </div>
+        {sparkValues.length >= 2 && <Sparkline data={sparkValues} width={110} height={48} />}
       </div>
     </motion.button>
   );

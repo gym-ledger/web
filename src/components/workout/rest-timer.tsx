@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { X, ChevronDown } from "lucide-react";
 
 interface RestTimerProps {
   initialSeconds: number;
@@ -13,8 +12,11 @@ interface RestTimerProps {
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+// Short buzz when rest is over — the phone is usually face-down on a bench.
+const REST_DONE_VIBRATION_MS = [180, 90, 180];
 
 /**
  * Mount this only while a rest period is active (e.g. `{visible && <RestTimer .../>}`
@@ -51,6 +53,7 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
       setRemaining(secsLeft);
       if (secsLeft <= 0 && !firedFinish) {
         firedFinish = true;
+        navigator.vibrate?.(REST_DONE_VIBRATION_MS);
         onFinishRef.current();
       }
     }
@@ -66,78 +69,62 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
     };
   }, [endAtMs]);
 
-  const progress = 1 - remaining / initialSeconds;
-  const circumference = 2 * Math.PI * 20;
-  const dashOffset = circumference * (1 - progress);
+  const progress = initialSeconds > 0 ? 1 - remaining / initialSeconds : 1;
+  const elapsedSeconds = initialSeconds - remaining;
+
+  // Bar fills left → right as the rest elapses. The label row is drawn twice —
+  // light text on the empty track, dark text inside the fill — and the fill
+  // layer is clipped to the progress, so the text stays readable wherever the
+  // fill edge happens to be.
+  const label = (tone: "light" | "dark") => (
+    <div className="flex h-full items-center gap-3 pr-2 pl-4">
+      <span
+        className={
+          tone === "light"
+            ? "font-display text-base font-bold tracking-[0.1em] text-muted-foreground"
+            : "font-display text-base font-bold tracking-[0.1em] text-primary-foreground"
+        }
+      >
+        REST
+      </span>
+      <span className="num text-[34px]">{formatTime(remaining)}</span>
+      <span
+        className={
+          tone === "light" ? "text-[13px] font-semibold text-muted-foreground" : "text-[13px] font-semibold"
+        }
+      >
+        {formatTime(elapsedSeconds)} / {formatTime(initialSeconds)}
+      </span>
+    </div>
+  );
 
   return (
     <motion.div
-      initial={{ y: 80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 80, opacity: 0 }}
-      transition={{ type: "spring", damping: 28, stiffness: 300 }}
-      className="fixed bottom-24 left-1/2 z-50 w-full max-w-md -translate-x-1/2 px-4"
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 60, opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="relative overflow-hidden border-b border-line bg-card"
+      role="timer"
+      aria-label={`Rest, ${formatTime(remaining)} left`}
     >
-      <div
-        className="flex items-center justify-between rounded-2xl px-4 py-3.5 shadow-2xl ring-1 ring-white/10"
-        style={{ backgroundColor: "oklch(0.28 0.10 258)" }}
-      >
-        {/* Left: label + timer */}
-        <div className="flex items-center gap-3">
-          {/* Circular progress */}
-          <div className="relative flex size-12 items-center justify-center">
-            <svg className="size-full -rotate-90" viewBox="0 0 48 48">
-              <circle
-                cx="24"
-                cy="24"
-                r="20"
-                fill="none"
-                stroke="oklch(1 0 0 / 15%)"
-                strokeWidth="3"
-              />
-              <circle
-                cx="24"
-                cy="24"
-                r="20"
-                fill="none"
-                stroke="oklch(0.97 0 0)"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                className="transition-all duration-1000"
-              />
-            </svg>
-            <span className="absolute text-xs font-bold text-white tabular-nums">
-              {formatTime(remaining)}
-            </span>
-          </div>
-
-          <div>
-            <p className="text-xs text-white/70 uppercase tracking-wider">Rest</p>
-            <p className="text-base font-bold text-white tabular-nums">
-              {formatTime(remaining)}
-            </p>
-          </div>
-        </div>
-
-        {/* Right: Skip button */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onSkip}
-            className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/15 transition-colors"
-          >
-            <ChevronDown className="size-4" />
-            Skip rest
-          </button>
-          <button
-            onClick={onSkip}
-            className="flex size-8 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
+      <div className="absolute inset-0 text-foreground" aria-hidden="true">
+        {label("light")}
       </div>
+      <div
+        className="absolute inset-0 bg-primary text-primary-foreground transition-[clip-path] duration-1000 ease-linear"
+        style={{ clipPath: `inset(0 ${(1 - progress) * 100}% 0 0)` }}
+        aria-hidden="true"
+      >
+        {label("dark")}
+      </div>
+      <button
+        type="button"
+        onClick={onSkip}
+        className="absolute top-1/2 right-2 h-11 -translate-y-1/2 rounded-lg bg-background px-4 font-display text-[15px] font-bold tracking-[0.08em] text-foreground uppercase transition-colors hover:bg-secondary"
+      >
+        Skip
+      </button>
     </motion.div>
   );
 }

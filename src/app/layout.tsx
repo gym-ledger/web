@@ -1,16 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/shared/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Barlow isn't a variable font on Google Fonts, so each weight is listed.
+const barlow = Barlow({
+  variable: "--font-barlow",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const barlowCondensed = Barlow_Semi_Condensed({
+  variable: "--font-barlow-condensed",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -27,7 +30,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#147fff",
+  themeColor: "#000000",
   colorScheme: "dark",
 };
 
@@ -39,7 +42,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${barlow.variable} ${barlowCondensed.variable} dark h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
         <div className="relative mx-auto max-w-md min-h-screen bg-background">

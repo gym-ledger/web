@@ -25,7 +25,24 @@ type CardState =
       sessionId: string;
       duration: string;
     }
-  | { status: "scheduled"; programName: string; dayName: string; exercises: string[] };
+  | { status: "scheduled"; programName: string; dayName: string; exercises: ExercisePreview[] };
+
+interface ExercisePreview {
+  name: string;
+  /** "4 × 6–8" style target, or null when the plan doesn't define one. */
+  target: string | null;
+}
+
+function formatTarget(sets: number | null, minReps: number | null, maxReps: number | null) {
+  const reps =
+    minReps != null && maxReps != null && minReps !== maxReps
+      ? `${minReps}–${maxReps}`
+      : (minReps ?? maxReps);
+  if (sets == null && reps == null) return null;
+  if (sets == null) return `${reps} reps`;
+  if (reps == null) return `${sets} sets`;
+  return `${sets} × ${reps}`;
+}
 
 function isToday(iso: string) {
   const d = new Date(iso);
@@ -110,10 +127,11 @@ export function TodayCard() {
         sessions.map((s) => fetchSessionExercises(currentPlan.id, todayDay.id, s.id)),
       );
       if (cancelled) return;
-      const exercises = exerciseLists
-        .flat()
-        .map((pe) => pe.exercise?.name)
-        .filter((n): n is string => !!n);
+      const exercises: ExercisePreview[] = exerciseLists.flat().flatMap((pe) =>
+        pe.exercise
+          ? [{ name: pe.exercise.name, target: formatTarget(pe.target_sets, pe.min_reps, pe.max_reps) }]
+          : [],
+      );
 
       setState({
         status: "scheduled",
@@ -132,7 +150,7 @@ export function TodayCard() {
   }, []);
 
   if (state.status === "loading") {
-    return <div className="h-40 rounded-2xl bg-card ring-1 ring-foreground/10 animate-pulse" />;
+    return <div className="h-56 animate-pulse rounded-2xl border border-border bg-card" />;
   }
 
   if (state.status === "hidden") {
@@ -145,14 +163,17 @@ export function TodayCard() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, delay: 0.05 }}
-        className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-border p-6 text-center"
+        className="flex flex-col gap-3 rounded-2xl border border-dashed border-input p-5"
       >
-        <p className="text-sm font-semibold text-foreground">No workout program yet</p>
-        <p className="text-xs text-muted-foreground">Add a workout program &amp; start your training</p>
-        <Link href="/workout" className="mt-3">
-          <Button className="h-10 rounded-xl font-semibold gap-2" size="sm">
-            <Plus className="size-4" />
-            Browse workout programs
+        <span className="label-caps text-primary">Up next</span>
+        <div>
+          <p className="font-display text-2xl font-bold leading-tight">No program yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Pick a workout program to start training.</p>
+        </div>
+        <Link href="/workout" className="mt-1">
+          <Button variant="light" size="xl" className="w-full">
+            <Plus />
+            Browse programs
           </Button>
         </Link>
       </motion.div>
@@ -165,16 +186,14 @@ export function TodayCard() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25, delay: 0.05 }}
-        className="flex items-center gap-3 rounded-2xl bg-card p-5 ring-1 ring-foreground/10"
+        className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-5"
       >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary">
-          <Moon className="size-5 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <span className="label-caps">Today · {state.programName}</span>
+          <span className="font-display text-[34px] leading-none font-bold">Rest day</span>
+          <span className="text-sm text-muted-foreground">Recovery is part of the program.</span>
         </div>
-        <div>
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest">Today</p>
-          <h3 className="text-base font-bold text-foreground">It&apos;s a rest day</h3>
-          <p className="text-xs text-muted-foreground">{state.programName}</p>
-        </div>
+        <Moon className="size-7 shrink-0 text-muted-foreground" strokeWidth={1.6} />
       </motion.div>
     );
   }
@@ -186,88 +205,70 @@ export function TodayCard() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.05 }}
-          className="relative overflow-hidden rounded-2xl bg-card ring-1 ring-foreground/10 active:scale-[0.99] transition-transform"
+          className="flex flex-col gap-4 rounded-2xl border border-success-line bg-success-surface p-5 transition-transform active:scale-[0.99]"
         >
-          <div className="absolute left-0 top-0 h-full w-1 bg-emerald-500" />
-          <div className="p-5 pl-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-medium text-emerald-500 uppercase tracking-widest">
-                  Workout complete
-                </p>
-                <h3 className="mt-1 text-xl font-bold text-foreground">
-                  {state.dayName ?? state.programName}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {state.programName} · {state.duration}
-                </p>
-              </div>
-              <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                <Check className="size-5 text-emerald-500" />
-              </div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="label-caps text-success">Workout complete</span>
+              <span className="truncate font-display text-[34px] leading-none font-bold">
+                {state.dayName ?? state.programName}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {state.programName} · {state.duration}
+              </span>
             </div>
-            <div className="mt-4 flex items-center gap-1 text-sm font-semibold text-primary">
-              View workout
-              <ChevronRight className="size-4" />
-            </div>
+            <Check className="size-7 shrink-0 text-success" strokeWidth={2.4} />
           </div>
+          <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
+            View workout
+            <ChevronRight className="size-4" />
+          </span>
         </motion.div>
       </Link>
     );
   }
+
+  const shown = state.exercises.slice(0, 3);
+  const remaining = state.exercises.length - shown.length;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: 0.05 }}
-      className="relative overflow-hidden rounded-2xl bg-card ring-1 ring-foreground/10"
+      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-[18px]"
     >
-      {/* Blue accent bar */}
-      <div className="absolute left-0 top-0 h-full w-1 bg-primary" />
-
-      <div className="p-5 pl-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-primary uppercase tracking-widest">
-              Today&apos;s Workout
-            </p>
-            <h3 className="mt-1 text-xl font-bold text-foreground">{state.dayName}</h3>
-            <p className="text-sm text-muted-foreground">{state.programName} Program</p>
-          </div>
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <Play className="size-5 text-primary fill-primary" />
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="label-caps truncate text-primary">Up next · {state.programName}</span>
+          <span className="truncate font-display text-[34px] leading-none font-bold">{state.dayName}</span>
         </div>
-
-        {/* Exercises preview */}
         {state.exercises.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {state.exercises.slice(0, 4).map((ex) => (
-              <span
-                key={ex}
-                className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground"
-              >
-                {ex}
-              </span>
-            ))}
-            {state.exercises.length > 4 && (
-              <span className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                +{state.exercises.length - 4} more
-              </span>
-            )}
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            <span className="num text-[22px]">{state.exercises.length}</span>
+            <span className="text-xs text-muted-foreground">exercises</span>
           </div>
         )}
-
-        {/* Start button */}
-        <Link href="/workout/active" className="block mt-4">
-          <Button className="w-full h-11 rounded-xl font-semibold gap-2">
-            <Play className="size-4 fill-current" />
-            Start Workout
-          </Button>
-        </Link>
       </div>
+
+      {shown.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {shown.map((ex, i) => (
+            <div key={`${ex.name}-${i}`} className="flex justify-between gap-3 text-sm">
+              <span className="truncate">{ex.name}</span>
+              {ex.target && <span className="shrink-0 text-muted-foreground">{ex.target}</span>}
+            </div>
+          ))}
+          {remaining > 0 && <span className="text-[13px] text-muted-foreground">+ {remaining} more</span>}
+        </div>
+      )}
+
+      <Link href="/workout/active" className="block">
+        <Button variant="light" size="xl" className="w-full">
+          <Play className="fill-current" />
+          Start workout
+        </Button>
+      </Link>
     </motion.div>
   );
 }

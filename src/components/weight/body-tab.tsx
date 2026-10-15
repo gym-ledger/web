@@ -73,12 +73,12 @@ function DeltaChip({ delta }: { delta: number | null }) {
   }
   if (delta < 0)
     return (
-      <span className="flex items-center gap-0.5 text-xs font-medium bg-emerald-500/10 text-emerald-500 rounded-md px-1.5 py-0.5">
+      <span className="flex items-center gap-0.5 text-xs font-medium bg-success-surface text-success rounded-md px-1.5 py-0.5">
         <TrendingDown className="size-3" /> {abs} kg
       </span>
     );
   return (
-    <span className="flex items-center gap-0.5 text-xs font-medium bg-rose-400/10 text-rose-400 rounded-md px-1.5 py-0.5">
+    <span className="flex items-center gap-0.5 text-xs font-medium bg-warning-surface text-warning rounded-md px-1.5 py-0.5">
       <TrendingUp className="size-3" /> {abs} kg
     </span>
   );
@@ -115,29 +115,29 @@ function SaveViewForm({ defaultFrom, defaultTo, onSave, onClose }: SaveViewDrawe
   return (
     <div className="flex flex-col gap-4 px-4 pb-2">
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-foreground">View name</label>
+        <label className="label-caps">View name</label>
         <input
           type="text"
           placeholder="e.g. Cut phase"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary"
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-foreground">From</label>
+        <label className="label-caps">From</label>
         <input
           type="date"
           value={from}
           max={todayISO()}
           onChange={(e) => setFrom(e.target.value)}
-          className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+          className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground outline-none focus:border-primary"
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium text-foreground">To</label>
+        <label className="label-caps">To</label>
         <div className="flex gap-2">
           <button
             onClick={() => setToType("now")}
@@ -167,7 +167,7 @@ function SaveViewForm({ defaultFrom, defaultTo, onSave, onClose }: SaveViewDrawe
             min={from}
             max={todayISO()}
             onChange={(e) => setToDate(e.target.value)}
-            className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground outline-none focus:border-primary"
           />
         )}
       </div>
@@ -293,12 +293,12 @@ export function BodyTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-foreground">Body weight</h2>
-          <p className="text-xs text-muted-foreground">{rangeLabel()}</p>
+          <p className="label-caps">{rangeLabel()}</p>
+          <h2 className="font-display text-2xl leading-tight font-bold">Body weight</h2>
         </div>
         <button
           onClick={() => setShowNewEntry(true)}
-          className="flex items-center gap-1.5 h-9 rounded-xl bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex h-10 items-center gap-1.5 rounded-full bg-foreground px-4 text-[13px] font-bold text-background transition-colors hover:bg-foreground/90"
         >
           <Plus className="size-3.5" /> Log entry
         </button>
@@ -309,10 +309,10 @@ export function BodyTab() {
         {/* Default chip */}
         <button
           onClick={() => { setActiveView({ type: "default" }); setShowCustom(false); }}
-          className={`shrink-0 h-8 rounded-full px-3 text-xs font-medium transition-colors ${
+          className={`min-h-9 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors ${
             activeView.type === "default"
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-muted-foreground hover:text-foreground"
+              ? "border-foreground bg-foreground text-background"
+              : "border-input bg-card text-muted-foreground hover:text-foreground"
           }`}
         >
           Last 30 days
@@ -323,17 +323,18 @@ export function BodyTab() {
           <div key={v.id} className="relative shrink-0 flex items-center">
             <button
               onClick={() => { setActiveView({ type: "saved", view: v }); setShowCustom(false); }}
-              className={`h-8 rounded-full pl-3 pr-7 text-xs font-medium transition-colors ${
+              className={`min-h-9 rounded-full border pr-8 pl-3 text-xs font-semibold transition-colors ${
                 activeView.type === "saved" && activeView.view.id === v.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground hover:text-foreground"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-input bg-card text-muted-foreground hover:text-foreground"
               }`}
             >
               {v.name}
             </button>
             <button
               onClick={() => handleDeleteView(v.id)}
-              className="absolute right-1.5 flex size-4 items-center justify-center rounded-full opacity-60 hover:opacity-100"
+              aria-label={`Delete view ${v.name}`}
+              className="absolute right-1 flex size-7 items-center justify-center rounded-full opacity-60 hover:opacity-100"
             >
               <X className="size-3" />
             </button>
@@ -343,10 +344,10 @@ export function BodyTab() {
         {/* Custom chip */}
         <button
           onClick={() => setShowCustom((s) => !s)}
-          className={`shrink-0 h-8 rounded-full px-3 text-xs font-medium flex items-center gap-1 transition-colors ${
+          className={`flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition-colors ${
             showCustom || activeView.type === "custom"
-              ? "bg-secondary text-foreground ring-1 ring-foreground/20"
-              : "bg-secondary text-muted-foreground hover:text-foreground"
+              ? "border-foreground bg-card text-foreground"
+              : "border-input bg-card text-muted-foreground hover:text-foreground"
           }`}
         >
           <SlidersHorizontal className="size-3" /> Custom
@@ -355,7 +356,7 @@ export function BodyTab() {
         {/* Save view */}
         <button
           onClick={() => setShowSaveForm((s) => !s)}
-          className="shrink-0 h-8 rounded-full px-3 text-xs font-medium bg-secondary text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+          className="flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-dashed border-input px-3 text-xs font-semibold text-primary transition-colors"
         >
           <Plus className="size-3" /> Save view
         </button>
@@ -366,29 +367,29 @@ export function BodyTab() {
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10 flex flex-col gap-3"
+          className="rounded-2xl bg-card p-4 border border-border flex flex-col gap-3"
         >
           <p className="text-sm font-semibold text-foreground">Custom range</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">From</label>
+              <label className="label-caps">From</label>
               <input
                 type="date"
                 value={customFrom}
                 max={customTo}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="h-10 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="h-10 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground">To</label>
+              <label className="label-caps">To</label>
               <input
                 type="date"
                 value={customTo}
                 min={customFrom}
                 max={todayISO()}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="h-10 rounded-xl border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="h-10 rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
               />
             </div>
           </div>
@@ -406,7 +407,7 @@ export function BodyTab() {
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
+          className="rounded-2xl bg-card p-4 border border-border"
         >
           <p className="text-sm font-semibold text-foreground mb-3">Save current view</p>
           <SaveViewForm
@@ -436,11 +437,11 @@ export function BodyTab() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl bg-card p-4 ring-1 ring-foreground/10"
+        className="rounded-2xl bg-card p-4 border border-border"
       >
         {loading ? (
           <div className="h-40 flex items-center justify-center">
-            <div className="size-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : (
           <>
@@ -449,7 +450,7 @@ export function BodyTab() {
                 {latest ? (
                   <>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-foreground tabular-nums">
+                      <span className="num text-[40px]">
                         {fmtWeight(latest.weight)}
                       </span>
                       <span className="text-sm text-muted-foreground">kg</span>
@@ -462,7 +463,7 @@ export function BodyTab() {
               </div>
               {totalDelta !== null && (
                 <div className="text-right">
-                  <p className="text-[10px] text-muted-foreground mb-1">Change</p>
+                  <p className="label-caps mb-1 text-[10px]">Change</p>
                   <DeltaChip delta={totalDelta} />
                 </div>
               )}
@@ -478,7 +479,7 @@ export function BodyTab() {
                   <svg width="24" height="2">
                     <line
                       x1="0" y1="1" x2="24" y2="1"
-                      stroke="oklch(0.62 0.22 258 / 50%)"
+                      stroke="rgb(59 140 255 / 50%)"
                       strokeWidth="1.5"
                       strokeDasharray="4 3"
                     />
@@ -495,7 +496,7 @@ export function BodyTab() {
       {!loading && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-foreground">
+            <h3 className="label-caps">
               All entries{entries.length > 0 ? ` (${entries.length})` : ""}
             </h3>
           </div>
@@ -504,7 +505,7 @@ export function BodyTab() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="rounded-2xl bg-card p-5 ring-1 ring-foreground/10 flex flex-col items-center gap-2 text-center"
+              className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-input p-6 text-center"
             >
               <p className="text-sm font-semibold text-foreground">No entries yet</p>
               <p className="text-xs text-muted-foreground">
@@ -512,7 +513,7 @@ export function BodyTab() {
               </p>
             </motion.div>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col border-t border-line">
               {[...entries].reverse().map((entry, i, arr) => {
                 const prev = arr[i + 1] ?? null;
                 const delta = prev ? entry.weight - prev.weight : null;
@@ -523,11 +524,12 @@ export function BodyTab() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i * 0.03, 0.2) }}
                     onClick={() => setEditingEntry(entry)}
-                    className="flex items-center justify-between rounded-xl bg-card px-4 py-3 ring-1 ring-foreground/10 hover:bg-secondary/50 transition-colors text-left w-full"
+                    className="flex w-full items-center justify-between border-b border-line py-3 text-left transition-colors hover:bg-card"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-foreground tabular-nums">
-                        {fmtWeight(entry.weight)} kg
+                      <p className="num text-xl">
+                        {fmtWeight(entry.weight)}
+                        <span className="text-[13px] text-muted-foreground"> kg</span>
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">{fmtDay(entry.day)}</p>
                     </div>

@@ -37,14 +37,14 @@ export function HomeworkWidget() {
   if (loading || alarms.length === 0) return null;
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-base font-bold text-foreground">
-          <AlertTriangle className="size-4 text-amber-500" />
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between">
+        <h2 className="label-caps flex items-center gap-1.5 text-warning">
+          <AlertTriangle className="size-3.5" />
           Homework
         </h2>
         <span className="text-xs text-muted-foreground">
-          {alarms.length} item{alarms.length !== 1 ? "s" : ""}
+          {alarms.length} flag{alarms.length !== 1 ? "s" : ""} from your sets
         </span>
       </div>
       <div className="flex flex-col gap-2">
@@ -56,31 +56,28 @@ export function HomeworkWidget() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: 40 }}
-              className="flex items-start gap-3 rounded-2xl bg-amber-500/10 p-3.5 ring-1 ring-amber-500/20"
+              className="flex items-start gap-3 rounded-2xl border border-warning-line bg-warning-surface p-3.5"
             >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15">
-                <AlertTriangle className="size-4 text-amber-500" />
-              </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-foreground">
-                  {alarm.exercise_name}
+                <p className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-[13px] font-semibold text-warning">{alarm.exercise_name}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(alarm.created_at)}</span>
                 </p>
-                <p className="mt-0.5 text-sm text-foreground/90">{alarm.message}</p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  {formatDate(alarm.created_at)}
-                </p>
+                <p className="mt-0.5 text-[15px] text-foreground">{alarm.message}</p>
               </div>
               <button
+                type="button"
                 onClick={() => handleDismiss(alarm.id)}
                 disabled={dismissingId === alarm.id}
-                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-amber-500/15 disabled:opacity-50"
+                aria-label={`Mark "${alarm.message}" as done`}
+                className="-m-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-warning/15 hover:text-foreground disabled:opacity-50"
               >
-                <X className="size-3.5" />
+                <X className="size-4" />
               </button>
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
-    </div>
+    </section>
   );
 }

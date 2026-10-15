@@ -26,7 +26,7 @@ export function WeightChart({ entries, movingAverages = [], height = 140 }: Weig
   const padR = 8;
   const chartW = W - padL - padR;
   const chartH = height - padB;
-  const color = "oklch(0.62 0.22 258)";
+  const color = "var(--primary)";
 
   const weights = entries.map((e) => e.weight);
   const minVal = Math.min(...weights) - 0.5;
@@ -89,13 +89,13 @@ export function WeightChart({ entries, movingAverages = [], height = 140 }: Weig
           y1={chartH * r}
           x2={W - padR}
           y2={chartH * r}
-          stroke="oklch(1 0 0 / 6%)"
+          stroke="var(--line)"
           strokeWidth="1"
         />
       ))}
 
       {yTicks.map((tick, i) => (
-        <text key={i} x={padL - 3} y={yOf(tick) + 3} textAnchor="end" fontSize="9" fill="oklch(0.55 0 0)">
+        <text key={i} x={padL - 3} y={yOf(tick) + 3} textAnchor="end" fontSize="9" fill="var(--muted-foreground)">
           {tick.toFixed(1)}
         </text>
       ))}
@@ -107,7 +107,7 @@ export function WeightChart({ entries, movingAverages = [], height = 140 }: Weig
       {maPath && (
         <path
           d={maPath}
-          stroke={`oklch(0.62 0.22 258 / 50%)`}
+          stroke={`rgb(59 140 255 / 50%)`}
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -120,7 +120,7 @@ export function WeightChart({ entries, movingAverages = [], height = 140 }: Weig
       ))}
 
       {labelEntries.map((e, i) => (
-        <text key={i} x={xOf(e.day)} y={height - 4} textAnchor="middle" fontSize="9" fill="oklch(0.55 0 0)">
+        <text key={i} x={xOf(e.day)} y={height - 4} textAnchor="middle" fontSize="9" fill="var(--muted-foreground)">
           {fmtDay(e.day)}
         </text>
       ))}

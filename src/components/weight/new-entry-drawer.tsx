@@ -60,7 +60,7 @@ export function NewEntryDrawer({ open, onClose, onSuccess }: NewEntryDrawerProps
 
         <div className="flex flex-col gap-4 px-4 pb-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">Weight (kg)</label>
+            <label className="label-caps">Weight (kg)</label>
             <input
               type="number"
               inputMode="decimal"
@@ -70,18 +70,18 @@ export function NewEntryDrawer({ open, onClose, onSuccess }: NewEntryDrawerProps
               placeholder="e.g. 78.5"
               value={weight}
               onChange={(e) => setWeight(e.target.value)}
-              className="h-12 rounded-xl border border-input bg-background px-4 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="num h-16 rounded-xl border border-input bg-background px-4 text-center text-[34px] text-foreground outline-none placeholder:text-subtle focus:border-primary"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">Date</label>
+            <label className="label-caps">Date</label>
             <input
               type="date"
               value={date}
               max={todayISO()}
               onChange={(e) => setDate(e.target.value)}
-              className="h-12 rounded-xl border border-input bg-background px-4 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="h-12 rounded-xl border border-input bg-background px-4 text-base text-foreground outline-none focus:border-primary"
             />
           </div>
         </div>
@@ -90,7 +90,7 @@ export function NewEntryDrawer({ open, onClose, onSuccess }: NewEntryDrawerProps
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="h-12 rounded-xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="h-13 rounded-xl bg-primary font-display text-lg font-bold tracking-[0.08em] text-primary-foreground uppercase transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {loading ? "Saving…" : "Save entry"}
           </button>
