@@ -326,6 +326,7 @@ export function ExerciseLogCard({
       setRir(s.rir != null ? String(s.rir) : "");
       setEffort(s.effort ?? "");
       setDiscomfort(s.discomfort_notes ?? "");
+      setIsWarmup(s.is_warmup ?? false);
       setAlarm(s.alarm_message ?? "");
       setShowAlarmInput(!!s.alarm_message);
       setDropSets(dropSetRowsFromHistory(lastMatchingGroup.drops));
@@ -339,6 +340,7 @@ export function ExerciseLogCard({
       setRir(s.rir != null ? String(s.rir) : "");
       setEffort(s.effort ?? "");
       setDiscomfort(s.discomfort_notes ?? "");
+      setIsWarmup(s.is_warmup);
       setAlarm("");
       setShowAlarmInput(false);
       setDropSets(dropSetRowsFromWorkoutSets(currentLatestGroup.drops));

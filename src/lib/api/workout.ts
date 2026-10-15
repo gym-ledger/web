@@ -504,6 +504,8 @@ export interface ExerciseHistorySet {
   effort: string | null;
   discomfort_notes: string | null;
   alarm_message: string | null;
+  /** Optional: responses from API versions before this field was added omit it. */
+  is_warmup?: boolean;
   parent_set_id: string | null;
   drop_order: number | null;
   created_at: string;
