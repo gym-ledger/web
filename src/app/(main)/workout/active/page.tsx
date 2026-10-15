@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ExerciseLogCard } from "@/components/workout/exercise-log-card";
 import { RestTimer } from "@/components/workout/rest-timer";
 import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
+import { AddExerciseScopeSheet, type AddExerciseScope } from "@/components/workout/add-exercise-scope-sheet";
 import {
   SessionExercisesSheet,
   exerciseProgress,
@@ -32,7 +33,7 @@ import {
   startWorkoutSession,
   finishWorkoutSession,
   fetchOngoingWorkoutSession,
-  addAdhocExercise,
+  addSessionExercise,
   type WorkoutPlanAssignment,
   type ProgramDay,
   type ProgramDaySession,
@@ -153,6 +154,8 @@ export default function ActiveWorkoutPage() {
   const [day, setDay] = useState<ProgramDay | null>(null);
   const [sessions, setSessions] = useState<ProgramDaySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  // The plan day-session being trained — where "all future sessions" adds go.
+  const [programDaySession, setProgramDaySession] = useState<ProgramDaySession | null>(null);
 
   const [workoutSession, setWorkoutSession] = useState<ActiveSession | null>(null);
   const pendingSyncCount = useWorkoutSetQueueStore((s) =>
@@ -204,7 +207,9 @@ export default function ActiveWorkoutPage() {
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [addExerciseOpen, setAddExerciseOpen] = useState(false);
-  const [addingExercise, setAddingExercise] = useState(false);
+  const [addingExercise, setAddingExercise] = useState<AddExerciseScope | null>(null);
+  // Picked in the add-exercise search, waiting on "this workout / all future sessions".
+  const [exerciseToAdd, setExerciseToAdd] = useState<ExerciseListItem | null>(null);
 
   function pickFromAssignments(plans: WorkoutPlanAssignment[]) {
     setActiveAssignments(plans);
@@ -235,6 +240,7 @@ export default function ActiveWorkoutPage() {
           fetchSessionExercises(assignmentArg.id, dayArg.id, session.id),
         ]);
         setWorkoutSession(ws);
+        setProgramDaySession(session);
         setExercises(ex);
         // Fire-and-forget — not awaited, so a slow gym connection doesn't
         // delay getting into the workout itself.
@@ -516,22 +522,42 @@ export default function ActiveWorkoutPage() {
     setRestKey((k) => k + 1);
   }
 
-  async function handleAddExercise(ex: ExerciseListItem) {
+  // Only the user's own copy of a plan can take new exercises.
+  const canAddToPlan = !!assignment?.is_editable && !!programDaySession;
+
+  function handlePickExercise(ex: ExerciseListItem) {
+    if (canAddToPlan) {
+      setAddExerciseOpen(false);
+      setExerciseToAdd(ex);
+    } else {
+      handleAddExercise(ex, "session");
+    }
+  }
+
+  async function handleAddExercise(ex: ExerciseListItem, scope: AddExerciseScope) {
     if (!workoutSession) return;
-    setAddingExercise(true);
+    setAddingExercise(scope);
     try {
-      // An ad-hoc exercise is stored against the session, so adding one is
+      // An added exercise is stored against the session, so adding one is
       // what creates a draft workout in the API if no set has yet.
       const sessionId = isDraft ? await startDraftSession() : workoutSession.id;
-      const planExercise = await addAdhocExercise(sessionId, ex.id);
+      const planExercise = await addSessionExercise(
+        sessionId,
+        ex.id,
+        scope === "plan" && programDaySession
+          ? { kind: "plan", programDaySessionId: programDaySession.id }
+          : { kind: "session" },
+      );
       setExercises((prev) => [...prev, planExercise]);
       preloadHistories([planExercise.exercise?.id]);
       setSelectedExerciseId(planExercise.id);
       setAddExerciseOpen(false);
+      setExerciseToAdd(null);
+      if (scope === "plan") toast.success(`Added to ${day?.name ?? "your plan"}`);
     } catch {
       toast.error("Failed to add exercise");
     } finally {
-      setAddingExercise(false);
+      setAddingExercise(null);
     }
   }
 
@@ -816,10 +842,27 @@ export default function ActiveWorkoutPage() {
 
       <AddExerciseSheet
         open={addExerciseOpen}
-        busy={addingExercise}
+        busy={addingExercise != null}
         inSessionExerciseIds={inSessionExerciseIds}
+        description={
+          canAddToPlan
+            ? "Log it in this workout only, or add it to your plan."
+            : undefined
+        }
         onClose={() => setAddExerciseOpen(false)}
-        onPick={handleAddExercise}
+        onPick={handlePickExercise}
+      />
+
+      <AddExerciseScopeSheet
+        exerciseName={exerciseToAdd?.name ?? null}
+        dayName={day?.name ?? "this day"}
+        busyScope={addingExercise}
+        onPick={(scope) => exerciseToAdd && handleAddExercise(exerciseToAdd, scope)}
+        onBack={() => {
+          setExerciseToAdd(null);
+          setAddExerciseOpen(true);
+        }}
+        onClose={() => setExerciseToAdd(null)}
       />
 
       <AnimatePresence>

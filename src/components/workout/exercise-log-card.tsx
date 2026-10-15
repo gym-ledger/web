@@ -556,6 +556,8 @@ export function ExerciseLogCard({
       ? null
       : (Number.isNaN(parsedWeight) ? 0 : parsedWeight) + (Number.isNaN(parsedToolWeight) ? 0 : parsedToolWeight);
   const targetLine = formatTargetLine(exercise);
+  // Added to the plan in this workout — its target is still to be set by what's logged.
+  const isNewInPlan = exercise.targets_from_workout_session_id != null && exercise.target_sets == null;
 
   function renderSetEditForm() {
     return (
@@ -660,9 +662,15 @@ export function ExerciseLogCard({
         <span className="label-caps text-primary">
           Exercise {position} of {total}
           {exercise.exercise_order == null && " · added"}
+          {isNewInPlan && " · new in plan"}
         </span>
         <h2 className="font-display text-[34px] leading-none font-bold">{exerciseName}</h2>
         {targetLine && <p className="text-sm text-muted-foreground">{targetLine}</p>}
+        {isNewInPlan && (
+          <p className="text-sm text-muted-foreground">
+            The sets and reps you log today become this exercise&apos;s target in your plan.
+          </p>
+        )}
         {exercise.notes && <p className="mt-1 text-[13px] text-muted-foreground">{exercise.notes}</p>}
       </div>
 

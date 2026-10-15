@@ -14,6 +14,8 @@ export function AddExerciseSheet({
   onClose,
   onPick,
   inSessionExerciseIds,
+  description = "Not on the plan? Log a substitute for this session.",
+  inSessionLabel = "already in this session",
 }: {
   open: boolean;
   busy: boolean;
@@ -21,6 +23,9 @@ export function AddExerciseSheet({
   onPick: (exercise: ExerciseListItem) => void;
   /** Catalog exercise ids already in the live session — flagged in results, still pickable. */
   inSessionExerciseIds?: Set<string>;
+  description?: string;
+  /** How results in `inSessionExerciseIds` are flagged. */
+  inSessionLabel?: string;
 }) {
   const [rawQuery, setRawQuery] = useState("");
   const [query, setQuery] = useState("");
@@ -80,7 +85,7 @@ export function AddExerciseSheet({
                 <h2 id="add-exercise-title" className="font-display text-2xl font-bold">
                   Add exercise
                 </h2>
-                <p className="text-sm text-muted-foreground">Not on the plan? Log a substitute for this session.</p>
+                <p className="text-sm text-muted-foreground">{description}</p>
               </div>
               <button
                 type="button"
@@ -135,7 +140,7 @@ export function AddExerciseSheet({
                             <span className="truncate text-[13px] text-muted-foreground">
                               {primaryMuscle?.name}
                               {primaryMuscle && inSession && " · "}
-                              {inSession && "already in this session"}
+                              {inSession && inSessionLabel}
                             </span>
                           )}
                         </span>

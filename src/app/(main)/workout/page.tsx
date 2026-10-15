@@ -15,6 +15,7 @@ import {
   fetchPublicWorkoutPlans,
   selectWorkoutPlan,
   deselectWorkoutPlan,
+  reactivateWorkoutPlan,
   type WorkoutPlanAssignment,
   type PublicWorkoutPlan,
 } from "@/lib/api/workout";
@@ -202,6 +203,19 @@ export default function WorkoutPage() {
     }
   }
 
+  async function handleReactivate(assignmentId: string) {
+    setBusyId(assignmentId);
+    try {
+      await reactivateWorkoutPlan(assignmentId);
+      toast.success("Plan reactivated");
+      refreshMine();
+    } catch {
+      toast.error("Failed to update plan");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function handleDeactivate(assignmentId: string) {
     setBusyId(assignmentId);
     try {
@@ -216,8 +230,9 @@ export default function WorkoutPage() {
   }
 
   const activeCount = myPlans.filter((p) => p.is_active).length;
+  // My Plans holds the user's own copies; Browse lists the public originals.
   const selectedProgramIds = new Set(
-    myPlans.filter((p) => p.is_active).map((p) => p.workout_program_id),
+    myPlans.filter((p) => p.is_active).map((p) => p.source_workout_program_id ?? p.workout_program_id),
   );
 
   return (
@@ -273,7 +288,7 @@ export default function WorkoutPage() {
                   assignment={assignment}
                   busy={busyId === assignment.id}
                   onDeactivate={() => handleDeactivate(assignment.id)}
-                  onReactivate={() => handleSelect(assignment.workout_program_id)}
+                  onReactivate={() => handleReactivate(assignment.id)}
                 />
               ))}
             </div>

@@ -33,6 +33,10 @@ export interface WorkoutPlanAssignment {
   version_number: number;
   training_days: number;
   split_type: string;
+  /** The public plan this is the user's copy of — what "Browse Plans" lists. */
+  source_workout_program_id: string | null;
+  /** The plan is the user's own copy, so its exercises can be changed. */
+  is_editable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +61,15 @@ export async function selectWorkoutPlan(workoutProgramId: string): Promise<Worko
 
 export async function deselectWorkoutPlan(assignmentId: string): Promise<WorkoutPlanAssignment> {
   return apiClient.delete<WorkoutPlanAssignment>(`/user/workout/plans/${assignmentId}`);
+}
+
+export async function reactivateWorkoutPlan(assignmentId: string): Promise<WorkoutPlanAssignment> {
+  return apiClient.post<WorkoutPlanAssignment>(`/user/workout/plans/${assignmentId}/activate`);
+}
+
+/** Replaces the user's copy of a plan with the newest version of the plan it came from, dropping their edits. */
+export async function resetWorkoutPlanToSource(assignmentId: string): Promise<WorkoutPlanAssignment> {
+  return apiClient.post<WorkoutPlanAssignment>(`/user/workout/plans/${assignmentId}/reset-to-source`);
 }
 
 export interface PlanDetailExercise {
@@ -108,12 +121,81 @@ export interface PlanDetail {
   session_ordering_logic: string;
   duration_type: string;
   duration_weeks: number;
+  /** The user's own copy of a plan, selected in My Plans — its exercises can be edited. */
+  is_editable: boolean;
+  assignment_id: string | null;
+  /** Set when the plan this was copied from has a newer published version. */
+  update_available: {
+    workout_program_version_id: string;
+    version_number: number;
+    version_name: string | null;
+  } | null;
   program_days: PlanDetailDay[];
 }
 
-/** Full read-only config of a plan — every day (including rest days), session, and exercise. */
+/** Full config of a plan — every day (including rest days), session, and exercise. */
 export async function fetchPlanDetail(workoutProgramVersionId: string): Promise<PlanDetail> {
   return apiClient.get<PlanDetail>(`/user/workout/plans/${workoutProgramVersionId}/detail`);
+}
+
+export interface PlanExerciseTargets {
+  targetSets: number;
+  minReps: number;
+  maxReps: number;
+  targetRir: number | null;
+  restSeconds: number | null;
+  notes: string | null;
+}
+
+function planExerciseTargetsBody(targets: PlanExerciseTargets) {
+  return {
+    target_sets: targets.targetSets,
+    min_reps: targets.minReps,
+    max_reps: targets.maxReps,
+    target_rir: targets.targetRir,
+    rest_seconds: targets.restSeconds,
+    notes: targets.notes,
+  };
+}
+
+/** Appends an exercise to a session of the user's own plan. */
+export async function addPlanExercise(
+  workoutProgramVersionId: string,
+  daySessionId: string,
+  exerciseId: string,
+  targets: PlanExerciseTargets,
+): Promise<PlanDetailExercise> {
+  return apiClient.post<PlanDetailExercise>(
+    `/user/workout/plans/${workoutProgramVersionId}/sessions/${daySessionId}/exercises`,
+    { exercise_id: exerciseId, ...planExerciseTargetsBody(targets) },
+  );
+}
+
+export async function updatePlanExercise(
+  workoutProgramVersionId: string,
+  planExerciseId: string,
+  targets: PlanExerciseTargets,
+): Promise<PlanDetailExercise> {
+  return apiClient.put<PlanDetailExercise>(
+    `/user/workout/plans/${workoutProgramVersionId}/exercises/${planExerciseId}`,
+    planExerciseTargetsBody(targets),
+  );
+}
+
+export async function removePlanExercise(workoutProgramVersionId: string, planExerciseId: string): Promise<void> {
+  await apiClient.delete(`/user/workout/plans/${workoutProgramVersionId}/exercises/${planExerciseId}`);
+}
+
+/** Saves a new order for a plan session's exercises — `planExerciseIds` must list all of them. */
+export async function reorderPlanExercises(
+  workoutProgramVersionId: string,
+  daySessionId: string,
+  planExerciseIds: string[],
+): Promise<void> {
+  await apiClient.put(
+    `/user/workout/plans/${workoutProgramVersionId}/sessions/${daySessionId}/exercise-order`,
+    { exercise_ids: planExerciseIds },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +225,8 @@ export interface PlanExercise {
   rest_seconds: number | null;
   tempo: string | null;
   notes: string | null;
+  /** Set on an exercise added to the plan mid-workout: its sets/reps come from what's logged in that workout. */
+  targets_from_workout_session_id: string | null;
   exercise: {
     id: string;
     name: string;
@@ -175,14 +259,27 @@ export async function fetchSessionExercises(
   );
 }
 
-/** Adds an exercise to a live session that isn't part of the programmed plan (e.g. a machine was unavailable). */
-export async function addAdhocExercise(
+/**
+ * Adds an exercise to a live session. `"session"`: just this workout (e.g. a
+ * machine was unavailable). `"plan"`: also every future run of the plan
+ * session `programDaySessionId` — its planned sets/reps are taken from what
+ * gets logged in this workout once it's finished.
+ */
+export async function addSessionExercise(
   sessionId: string,
   exerciseId: string,
+  scope: { kind: "session" } | { kind: "plan"; programDaySessionId: string },
 ): Promise<PlanExercise> {
   return apiClient.post<PlanExercise>(`/user/workout/sessions/${sessionId}/adhoc-exercise`, {
     exercise_id: exerciseId,
+    scope: scope.kind,
+    program_day_session_id: scope.kind === "plan" ? scope.programDaySessionId : undefined,
   });
+}
+
+/** Adds an exercise to this workout only. Kept for the frozen `/old` UI. */
+export async function addAdhocExercise(sessionId: string, exerciseId: string): Promise<PlanExercise> {
+  return addSessionExercise(sessionId, exerciseId, { kind: "session" });
 }
 
 // ---------------------------------------------------------------------------
