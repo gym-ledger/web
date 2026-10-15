@@ -28,6 +28,20 @@ function deviceTimezone() {
   }
 }
 
+/** The browser's own ID for `tz`, so aliases ("Asia/Calcutta" vs "Asia/Kolkata") collapse to one name. */
+function canonicalTimezone(tz: string) {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz }).resolvedOptions().timeZone;
+  } catch {
+    return tz;
+  }
+}
+
+// The API stores current IANA names, while browsers may report a legacy alias of the same zone.
+function sameTimezone(a: string, b: string) {
+  return a === b || canonicalTimezone(a) === canonicalTimezone(b);
+}
+
 function Segmented<T extends string>({
   label,
   options,
@@ -106,7 +120,7 @@ export default function ProfilePage() {
     !saved ||
     saved.weight_units !== draft.weight_units ||
     saved.height_units !== draft.height_units ||
-    saved.timezone !== draft.timezone ||
+    !sameTimezone(saved.timezone, draft.timezone) ||
     (heightValid && saved.height !== parsedHeight);
 
   async function handleSave() {
@@ -210,7 +224,7 @@ export default function ProfilePage() {
               </label>
             </Row>
             <Row label="Timezone" sub={draft.timezone}>
-              {draft.timezone !== deviceTz ? (
+              {!sameTimezone(draft.timezone, deviceTz) ? (
                 <button
                   type="button"
                   onClick={() => setDraft((d) => ({ ...d, timezone: deviceTz }))}

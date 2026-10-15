@@ -33,6 +33,8 @@ const COUNTRY_CODES = [
 ];
 
 const RESEND_COOLDOWN = 60;
+const OTP_LENGTH = 6;
+const emptyOtp = () => Array<string>(OTP_LENGTH).fill("");
 
 export default function LoginPage() {
   const router = useRouter();
@@ -47,13 +49,13 @@ export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
 
   // otp step
-  const [otpDigits, setOtpDigits] = useState(["", "", "", ""]);
+  const [otpDigits, setOtpDigits] = useState(emptyOtp);
   const [resendCountdown, setResendCountdown] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null]);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>(Array(OTP_LENGTH).fill(null));
 
   useEffect(() => {
     if (resendCountdown <= 0) return;
@@ -78,7 +80,7 @@ export default function LoginPage() {
     try {
       await apiClient.post("/auth/login/send-otp", buildSendBody());
       setStep("otp");
-      setOtpDigits(["", "", "", ""]);
+      setOtpDigits(emptyOtp());
       setResendCountdown(RESEND_COOLDOWN);
       setTimeout(() => otpRefs.current[0]?.focus(), 120);
     } catch (err) {
@@ -89,7 +91,7 @@ export default function LoginPage() {
   }
 
   async function submitOtp(otpValue: string) {
-    if (otpValue.length < 4 || loading) return;
+    if (otpValue.length < OTP_LENGTH || loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -121,9 +123,9 @@ export default function LoginPage() {
     const next = [...otpDigits];
     next[index] = digit;
     setOtpDigits(next);
-    if (digit && index < 3) {
+    if (digit && index < OTP_LENGTH - 1) {
       otpRefs.current[index + 1]?.focus();
-    } else if (digit && index === 3 && next.every(Boolean)) {
+    } else if (digit && index === OTP_LENGTH - 1 && next.every(Boolean)) {
       otpRefs.current[index]?.blur();
       submitOtp(next.join(""));
     }
@@ -137,12 +139,12 @@ export default function LoginPage() {
 
   function handleOtpPaste(e: React.ClipboardEvent) {
     e.preventDefault();
-    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
-    const next = ["", "", "", ""];
+    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
+    const next = emptyOtp();
     for (let i = 0; i < text.length; i++) next[i] = text[i];
     setOtpDigits(next);
-    otpRefs.current[Math.min(text.length, 3)]?.focus();
-    if (text.length === 4) submitOtp(text);
+    otpRefs.current[Math.min(text.length, OTP_LENGTH - 1)]?.focus();
+    if (text.length === OTP_LENGTH) submitOtp(text);
   }
 
   function switchMethod() {
@@ -154,7 +156,7 @@ export default function LoginPage() {
 
   function goBack() {
     setStep("input");
-    setOtpDigits(["", "", "", ""]);
+    setOtpDigits(emptyOtp());
     setError(null);
   }
 
@@ -197,7 +199,7 @@ export default function LoginPage() {
                   Check your {method === "email" ? "inbox" : "phone"}
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  We sent a 4-digit code to
+                  We sent a {OTP_LENGTH}-digit code to
                 </p>
                 <p className="text-sm font-semibold text-foreground">{contactLabel}</p>
               </motion.div>
@@ -355,8 +357,8 @@ export default function LoginPage() {
               }}
             >
               <form onSubmit={handleVerifyOtp} className="flex flex-col gap-5">
-                {/* 4-digit OTP inputs */}
-                <div className="flex justify-center gap-3">
+                {/* OTP inputs */}
+                <div className="flex justify-center gap-2">
                   {otpDigits.map((digit, i) => (
                     <input
                       key={i}
@@ -371,7 +373,7 @@ export default function LoginPage() {
                       onKeyDown={(e) => handleOtpKeyDown(i, e)}
                       onPaste={i === 0 ? handleOtpPaste : undefined}
                       className={cn(
-                        "size-14 rounded-xl border-2 border-input bg-input/20 text-center text-2xl font-bold text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-ring",
+                        "size-12 rounded-xl border-2 border-input bg-input/20 text-center text-xl font-bold text-foreground transition-all focus:outline-none focus:ring-2 focus:ring-ring",
                         digit && "border-primary/60 ring-1 ring-primary/20",
                       )}
                     />
@@ -384,10 +386,10 @@ export default function LoginPage() {
 
                 <Button
                   type="submit"
-                  disabled={loading || otp.length < 4}
+                  disabled={loading || otp.length < OTP_LENGTH}
                   className={cn(
                     "h-12 rounded-xl text-base font-semibold",
-                    (loading || otp.length < 4) && "opacity-70",
+                    (loading || otp.length < OTP_LENGTH) && "opacity-70",
                   )}
                 >
                   {loading ? "Verifying…" : "Verify & sign in"}
