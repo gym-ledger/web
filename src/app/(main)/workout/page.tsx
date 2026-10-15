@@ -71,6 +71,13 @@ function AssignmentCard({
                   Start
                 </Button>
               </Link>
+              {assignment.is_editable && (
+                <Link href={`/workout/plans/${assignment.workout_program_version_id}?edit=1`}>
+                  <Button variant="outline" className="h-13 rounded-xl px-4 text-sm font-semibold">
+                    Edit
+                  </Button>
+                </Link>
+              )}
               <Button
                 variant="outline"
                 className="h-13 rounded-xl px-4 text-sm font-semibold"

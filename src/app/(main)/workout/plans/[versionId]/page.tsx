@@ -225,10 +225,14 @@ function DayCard({
 
 export default function PlanDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ versionId: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
   const { versionId } = use(params);
+  // "Edit" on a My Plans card opens the plan straight into edit mode.
+  const startInEditMode = use(searchParams).edit === "1";
   const router = useRouter();
 
   const [plan, setPlan] = useState<PlanDetail | null>(null);
@@ -236,7 +240,7 @@ export default function PlanDetailPage({
   const [notFoundFlag, setNotFoundFlag] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startInEditMode);
   // Session the exercise search is adding to.
   const [addingTo, setAddingTo] = useState<Location | null>(null);
   const [sheet, setSheet] = useState<SheetState | null>(null);
@@ -380,6 +384,8 @@ export default function PlanDetailPage({
     );
   }
 
+  // `?edit=1` can be on any plan's URL — only the user's own copy is editable.
+  const isEditing = editing && plan.is_editable;
   const trainingDays = plan.program_days.filter((d) => d.sessions.some((s) => s.exercises.length > 0)).length;
   const addingToExerciseIds = new Set(
     (addingTo ? findLocation(addingTo.session.id)?.session.exercises ?? [] : [])
@@ -463,7 +469,7 @@ export default function PlanDetailPage({
           </div>
         )}
 
-        {editing && (
+        {isEditing && (
           <p className="text-[13px] text-muted-foreground">
             Changes apply to your future workouts. Past workouts aren&apos;t affected.
           </p>
@@ -475,7 +481,7 @@ export default function PlanDetailPage({
               key={day.id}
               day={day}
               index={i}
-              editing={editing}
+              editing={isEditing}
               reorderingSessionId={reorderingSessionId}
               onEditExercise={(session, exercise) => setSheet({ kind: "edit", exercise, day, session })}
               onAddExercise={(session) => setAddingTo({ day, session })}
@@ -515,7 +521,7 @@ export default function PlanDetailPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/70"
+            className="fixed inset-0 z-60 flex items-end justify-center bg-black/70"
             onClick={() => !resetting && setConfirmReset(false)}
           >
             <motion.div
