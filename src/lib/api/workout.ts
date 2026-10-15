@@ -198,15 +198,25 @@ export interface WorkoutSession {
   notes: string | null;
 }
 
+/**
+ * Starts (or resumes) the session for this plan day. Pass a client-generated
+ * `id` and `startedAt` to create it for a local draft — retries with the same
+ * `id` return it. Always use the returned `id`: when another session is
+ * already in progress for the plan, that one comes back instead.
+ */
 export async function startWorkoutSession(params: {
   assignmentId: string;
   programDayId: string;
   programDaySessionId: string;
+  id?: string;
+  startedAt?: string;
 }): Promise<WorkoutSession> {
   return apiClient.post<WorkoutSession>("/user/workout/sessions/start", {
     assignment_id: params.assignmentId,
     program_day_id: params.programDayId,
     program_day_session_id: params.programDaySessionId,
+    id: params.id,
+    started_at: params.startedAt,
   });
 }
 

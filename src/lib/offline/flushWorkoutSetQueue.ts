@@ -2,6 +2,7 @@
 
 import { logWorkoutSetsBatch, type BatchSetItem } from "@/lib/api/workout";
 import { useWorkoutSetQueueStore, type ResolvedSet } from "./workoutSetQueue";
+import { startDraftSession, useWorkoutDraftStore } from "./workoutDraft";
 
 let flushing = false;
 
@@ -14,11 +15,33 @@ let flushing = false;
 export async function flushWorkoutSetQueue(): Promise<void> {
   if (flushing) return;
 
-  const store = useWorkoutSetQueueStore.getState();
-  const pending = store.queue.filter((q) => q.status !== "syncing");
-  if (pending.length === 0) return;
+  if (useWorkoutSetQueueStore.getState().queue.every((q) => q.status === "syncing")) return;
 
   flushing = true;
+
+  // Sets logged against a not-yet-created workout (see workoutDraft) need
+  // their session to exist first. Network trouble → retry on the next flush;
+  // an outright refusal clears the draft and its sets fail below.
+  const draft = useWorkoutDraftStore.getState().draft;
+  if (draft && useWorkoutSetQueueStore.getState().queue.some((q) => q.workoutSessionId === draft.id)) {
+    try {
+      await startDraftSession();
+    } catch {
+      if (useWorkoutDraftStore.getState().draft) {
+        useWorkoutSetQueueStore.getState().setLastFlushFailedAt(Date.now());
+        flushing = false;
+        return;
+      }
+    }
+  }
+
+  // Read after the draft start, which may have remapped session ids.
+  const store = useWorkoutSetQueueStore.getState();
+  const pending = store.queue.filter((q) => q.status !== "syncing");
+  if (pending.length === 0) {
+    flushing = false;
+    return;
+  }
   const clientIds = pending.map((q) => q.clientId);
   store.markSyncing(clientIds);
 

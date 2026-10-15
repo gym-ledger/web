@@ -18,6 +18,7 @@ import { ProgressRing } from "@/components/shared/progress-ring";
 import { Button } from "@/components/ui/button";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
+import { startDraftSession, useWorkoutDraftStore, type WorkoutDraft } from "@/lib/offline/workoutDraft";
 import {
   preloadExerciseHistories,
   type ExerciseHistoryCache,
@@ -36,7 +37,6 @@ import {
   type ProgramDay,
   type ProgramDaySession,
   type PlanExercise,
-  type WorkoutSession,
   type WorkoutSet,
 } from "@/lib/api/workout";
 import type { ExerciseListItem } from "@/lib/api/exercises";
@@ -51,6 +51,16 @@ type Step =
   | "starting"
   | "active"
   | "error";
+
+/** The session being logged — a server session, or a local draft not yet written to the API (see workoutDraft). */
+type ActiveSession = { id: string; started_at: string };
+
+// A picked-but-untouched draft older than this is dropped instead of resumed.
+const STALE_DRAFT_MS = 1000 * 60 * 60 * 12;
+
+function hasQueuedSets(sessionId: string) {
+  return useWorkoutSetQueueStore.getState().queue.some((q) => q.workoutSessionId === sessionId);
+}
 
 function formatDuration(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -144,10 +154,13 @@ export default function ActiveWorkoutPage() {
   const [sessions, setSessions] = useState<ProgramDaySession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
 
-  const [workoutSession, setWorkoutSession] = useState<WorkoutSession | null>(null);
+  const [workoutSession, setWorkoutSession] = useState<ActiveSession | null>(null);
   const pendingSyncCount = useWorkoutSetQueueStore((s) =>
     workoutSession ? s.pendingCountForSession(workoutSession.id) : 0,
   );
+  const draftId = useWorkoutDraftStore((s) => s.draft?.id ?? null);
+  // Not in the API yet — nothing has synced against this workout.
+  const isDraft = !!workoutSession && workoutSession.id === draftId;
   const [exercises, setExercises] = useState<PlanExercise[]>([]);
   const [setsByExercise, setSetsByExercise] = useState<Record<string, WorkoutSet[]>>({});
   // Previous-performance data for each exercise, fetched in the background as
@@ -205,16 +218,20 @@ export default function ActiveWorkoutPage() {
     }
   }
 
-  const startSession = useCallback(
-    async (assignmentArg: WorkoutPlanAssignment, dayArg: ProgramDay, session: ProgramDaySession) => {
+  // Loads the session's exercises (and, for a server session, its logged
+  // sets) and opens the logging screen.
+  const enterSession = useCallback(
+    async (
+      assignmentArg: WorkoutPlanAssignment,
+      dayArg: ProgramDay,
+      session: ProgramDaySession,
+      sessionPromise: Promise<ActiveSession>,
+      isDraftSession: boolean,
+    ) => {
       setStep("starting");
       try {
         const [ws, ex] = await Promise.all([
-          startWorkoutSession({
-            assignmentId: assignmentArg.id,
-            programDayId: dayArg.id,
-            programDaySessionId: session.id,
-          }),
+          sessionPromise,
           fetchSessionExercises(assignmentArg.id, dayArg.id, session.id),
         ]);
         setWorkoutSession(ws);
@@ -223,7 +240,7 @@ export default function ActiveWorkoutPage() {
         // delay getting into the workout itself.
         preloadHistories(ex.map((e) => e.exercise?.id));
 
-        const existingSets = await fetchSessionSets(ws.id);
+        const existingSets = isDraftSession ? [] : await fetchSessionSets(ws.id);
         const grouped: Record<string, WorkoutSet[]> = {};
         for (const s of existingSets) {
           (grouped[s.workout_program_exercise_id] ??= []).push(s);
@@ -251,11 +268,77 @@ export default function ActiveWorkoutPage() {
     [preloadHistories],
   );
 
+  // Picking a day only creates a local draft — the API session is created
+  // with this id and start time when the first set syncs.
+  const beginDraft = useCallback(
+    (assignmentArg: WorkoutPlanAssignment, dayArg: ProgramDay, session: ProgramDaySession) => {
+      const draft: WorkoutDraft = {
+        id: crypto.randomUUID(),
+        assignmentId: assignmentArg.id,
+        programDayId: dayArg.id,
+        programDaySessionId: session.id,
+        startedAt: new Date().toISOString(),
+      };
+      useWorkoutDraftStore.getState().setDraft(draft);
+      return enterSession(
+        assignmentArg,
+        dayArg,
+        session,
+        Promise.resolve({ id: draft.id, started_at: draft.startedAt }),
+        true,
+      );
+    },
+    [enterSession],
+  );
+
+  // If the API resumed a different in-progress session for this draft (e.g.
+  // started on another device), switch to that session's id and start time.
+  useEffect(
+    () =>
+      useWorkoutDraftStore.subscribe((state) => {
+        const started = state.started;
+        if (!started || started.session.id === started.draftId) return;
+        setWorkoutSession((prev) =>
+          prev?.id === started.draftId
+            ? { id: started.session.id, started_at: started.session.started_at }
+            : prev,
+        );
+      }),
+    [],
+  );
+
   // Step 1: check for a workout already in progress (e.g. the app was
   // backgrounded or the page reloaded mid-workout) and jump straight back
-  // into it; otherwise resolve which plan we're training under as normal.
+  // into it — a server session first, else a local draft not yet synced;
+  // otherwise resolve which plan we're training under as normal.
   useEffect(() => {
     let cancelled = false;
+
+    // Restores the picker state for a plan/day/session and returns it, or
+    // null if any of them no longer exists.
+    async function loadPick(
+      plans: WorkoutPlanAssignment[],
+      assignmentId: string,
+      dayId: string,
+      sessionId: string,
+    ) {
+      const assignmentObj = plans.find((p) => p.id === assignmentId);
+      if (!assignmentObj) return null;
+      const dayList = await fetchProgramDays(assignmentId);
+      const dayObj = dayList.find((d) => d.id === dayId);
+      if (!dayObj) return null;
+      const sessionList = await fetchProgramDaySessions(assignmentId, dayObj.id);
+      const sessionObj = sessionList.find((s) => s.id === sessionId);
+      if (!sessionObj || cancelled) return null;
+      setActiveAssignments(plans);
+      setAssignment(assignmentObj);
+      setDays(dayList);
+      setDaysLoading(false);
+      setDay(dayObj);
+      setSessions(sessionList);
+      setSessionsLoading(false);
+      return { assignmentObj, dayObj, sessionObj };
+    }
 
     async function init() {
       try {
@@ -268,29 +351,50 @@ export default function ActiveWorkoutPage() {
         ]);
         if (cancelled) return;
 
+        const draftStore = useWorkoutDraftStore.getState();
+        const draft = draftStore.draft;
+
         if (ongoing?.program_day_id && ongoing.program_day_session_id) {
-          const dayList = await fetchProgramDays(ongoing.assignment_id);
+          const pick = await loadPick(plans, ongoing.assignment_id, ongoing.program_day_id, ongoing.program_day_session_id);
           if (cancelled) return;
-          const assignmentObj = plans.find((p) => p.id === ongoing.assignment_id);
-          const dayObj = dayList.find((d) => d.id === ongoing.program_day_id);
-          if (assignmentObj && dayObj) {
-            const sessionList = await fetchProgramDaySessions(ongoing.assignment_id, dayObj.id);
-            if (cancelled) return;
-            const sessionObj = sessionList.find((s) => s.id === ongoing.program_day_session_id);
-            if (sessionObj) {
-              setActiveAssignments(plans);
-              setAssignment(assignmentObj);
-              setDays(dayList);
-              setDaysLoading(false);
-              setDay(dayObj);
-              setSessions(sessionList);
-              setSessionsLoading(false);
-              await startSession(assignmentObj, dayObj, sessionObj);
-              return;
-            }
+          if (pick) {
+            // The server's workout wins over an untouched local draft.
+            if (draft && !hasQueuedSets(draft.id)) draftStore.clearDraft();
+            await enterSession(
+              pick.assignmentObj,
+              pick.dayObj,
+              pick.sessionObj,
+              startWorkoutSession({
+                assignmentId: pick.assignmentObj.id,
+                programDayId: pick.dayObj.id,
+                programDaySessionId: pick.sessionObj.id,
+              }),
+              false,
+            );
+            return;
           }
           pickFromAssignments(plans);
           return;
+        }
+
+        if (draft) {
+          const stale = Date.now() - new Date(draft.startedAt).getTime() > STALE_DRAFT_MS;
+          const pick =
+            stale && !hasQueuedSets(draft.id)
+              ? null
+              : await loadPick(plans, draft.assignmentId, draft.programDayId, draft.programDaySessionId);
+          if (cancelled) return;
+          if (pick) {
+            await enterSession(
+              pick.assignmentObj,
+              pick.dayObj,
+              pick.sessionObj,
+              Promise.resolve({ id: draft.id, started_at: draft.startedAt }),
+              true,
+            );
+            return;
+          }
+          if (!hasQueuedSets(draft.id)) draftStore.clearDraft();
         }
 
         pickFromAssignments(plans);
@@ -303,7 +407,7 @@ export default function ActiveWorkoutPage() {
     return () => {
       cancelled = true;
     };
-  }, [startSession]);
+  }, [enterSession]);
 
   // Step 2: once a plan is chosen, load its days.
   useEffect(() => {
@@ -332,14 +436,14 @@ export default function ActiveWorkoutPage() {
       .then((s) => {
         setSessions(s);
         if (s.length === 1) {
-          startSession(assignment, day, s[0]);
+          beginDraft(assignment, day, s[0]);
         } else if (s.length === 0) {
           setStep("error");
         }
       })
       .catch(() => setStep("error"))
       .finally(() => setSessionsLoading(false));
-  }, [step, assignment, day, startSession]);
+  }, [step, assignment, day, beginDraft]);
 
   // Elapsed timer while a workout is active — computed from the session's
   // real `started_at` rather than counting up from 0, so a resumed workout
@@ -392,6 +496,8 @@ export default function ActiveWorkoutPage() {
     (total, sets) => total + sets.length,
     0,
   );
+  // Until the first set, the workout exists only on this device.
+  const canCancel = isDraft && totalSetsLogged === 0 && pendingSyncCount === 0;
 
   function handleSetLogged(
     exerciseId: string,
@@ -414,7 +520,10 @@ export default function ActiveWorkoutPage() {
     if (!workoutSession) return;
     setAddingExercise(true);
     try {
-      const planExercise = await addAdhocExercise(workoutSession.id, ex.id);
+      // An ad-hoc exercise is stored against the session, so adding one is
+      // what creates a draft workout in the API if no set has yet.
+      const sessionId = isDraft ? await startDraftSession() : workoutSession.id;
+      const planExercise = await addAdhocExercise(sessionId, ex.id);
       setExercises((prev) => [...prev, planExercise]);
       preloadHistories([planExercise.exercise?.id]);
       setSelectedExerciseId(planExercise.id);
@@ -430,17 +539,25 @@ export default function ActiveWorkoutPage() {
     if (!workoutSession) return;
     setFinishing(true);
     try {
-      await finishWorkoutSession(workoutSession.id);
+      // Sets were logged but haven't synced the session into the API yet.
+      const sessionId = isDraft ? await startDraftSession() : workoutSession.id;
+      await finishWorkoutSession(sessionId);
       if (pendingSyncCount > 0) {
         toast.success("Workout finished — your sets will sync once you're back online.");
         router.push("/home");
       } else {
-        router.push(`/workout/history/${workoutSession.id}?completed=1`);
+        router.push(`/workout/history/${sessionId}?completed=1`);
       }
     } catch {
       toast.error("Failed to finish workout");
       setFinishing(false);
     }
+  }
+
+  // Nothing logged and nothing in the API — backing out just drops the draft.
+  function handleCancel() {
+    useWorkoutDraftStore.getState().clearDraft();
+    router.push("/workout");
   }
 
   if (step === "loading" || step === "starting") {
@@ -521,7 +638,7 @@ export default function ActiveWorkoutPage() {
         title="Which session?"
         items={sessions}
         render={(s) => ({ title: s.name })}
-        onPick={(s) => assignment && day && startSession(assignment, day, s)}
+        onPick={(s) => assignment && day && beginDraft(assignment, day, s)}
       />
     );
   }
@@ -564,13 +681,23 @@ export default function ActiveWorkoutPage() {
             <span className="num text-xl">{formatDuration(elapsed)}</span>
             <span className="text-[9px] font-semibold tracking-[0.08em] text-subtle uppercase">Elapsed</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowFinishConfirm(true)}
-            className="h-10 shrink-0 rounded-full border border-danger-line bg-danger-surface px-3.5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/15"
-          >
-            Finish
-          </button>
+          {canCancel ? (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="h-10 shrink-0 rounded-full border border-input bg-card px-3.5 text-sm font-bold transition-colors hover:bg-secondary"
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowFinishConfirm(true)}
+              className="h-10 shrink-0 rounded-full border border-danger-line bg-danger-surface px-3.5 text-sm font-bold text-destructive transition-colors hover:bg-destructive/15"
+            >
+              Finish
+            </button>
+          )}
         </div>
 
         {pendingSyncCount > 0 && (

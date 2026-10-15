@@ -48,6 +48,8 @@ interface WorkoutSetQueueState {
   markFailed: (clientIds: string[]) => void;
   setLastFlushFailedAt: (ts: number | null) => void;
   consumeResolved: (clientId: string) => void;
+  /** Points queued sets at the session id the API actually returned for a draft. */
+  remapSession: (fromSessionId: string, toSessionId: string) => void;
   pendingCountForSession: (workoutSessionId: string) => number;
 }
 
@@ -96,6 +98,14 @@ export const useWorkoutSetQueueStore = create<WorkoutSetQueueState>()(
           delete next[clientId];
           return { resolved: next };
         });
+      },
+
+      remapSession: (fromSessionId, toSessionId) => {
+        set((state) => ({
+          queue: state.queue.map((q) =>
+            q.workoutSessionId === fromSessionId ? { ...q, workoutSessionId: toSessionId } : q,
+          ),
+        }));
       },
 
       pendingCountForSession: (workoutSessionId) =>
