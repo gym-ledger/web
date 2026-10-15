@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <title>Offline · APEX</title>
+    <!--
+      Served by the service worker for a screen that was never opened before
+      while there's no connection. Self-contained on purpose: it can't rely
+      on any other file being cached.
+    -->
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #000000;
+        color: #f2f5f7;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        box-sizing: border-box;
+        min-height: 100vh;
+        max-width: 28rem;
+        margin: 0 auto;
+        padding: 0 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #ffb020;
+      }
+      h1 {
+        margin: 6px 0 0;
+        font-size: 28px;
+        line-height: 1.15;
+      }
+      p {
+        margin: 8px 0 0;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #8a979f;
+      }
+      .actions {
+        margin-top: 24px;
+        display: flex;
+        gap: 12px;
+        width: 100%;
+      }
+      a,
+      button {
+        flex: 1;
+        box-sizing: border-box;
+        height: 52px;
+        border-radius: 12px;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      a {
+        background: #f2f5f7;
+        color: #000000;
+        border: none;
+      }
+      button {
+        background: #0d1215;
+        color: #f2f5f7;
+        border: 1px solid #222b31;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">Offline</span>
+      <h1>This screen isn&rsquo;t saved yet</h1>
+      <p>
+        You&rsquo;re offline and this page hasn&rsquo;t been opened on this device before. Screens you&rsquo;ve
+        already visited, including your workouts, still work.
+      </p>
+      <div class="actions">
+        <button type="button" onclick="location.reload()">Try again</button>
+        <a href="/home">Go home</a>
+      </div>
+    </main>
+  </body>
+</html>

@@ -9,6 +9,17 @@ import {
 } from "./authConstants";
 import type { AuthBroadcastEvent } from "./authTypes";
 
+/**
+ * The refresh couldn't reach a working server (offline, timeout, 5xx). The
+ * session itself may be perfectly valid, so this must never log the user out.
+ */
+export class TransientRefreshError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TransientRefreshError";
+  }
+}
+
 let activeRefreshPromise: Promise<string> | null = null;
 let broadcastChannel: BroadcastChannel | null = null;
 
@@ -83,7 +94,7 @@ async function doRefresh(): Promise<string> {
       headers: { "refresh-token": refreshToken },
     });
   } catch {
-    throw new Error("Network error during token refresh");
+    throw new TransientRefreshError("Network error during token refresh");
   }
 
   if (res.status === 401 || res.status === 403) {
@@ -98,15 +109,21 @@ async function doRefresh(): Promise<string> {
   }
 
   if (!res.ok) {
-    performLogout();
-    throw new Error(`Token refresh failed with status ${res.status}`);
+    // Server/gateway trouble (5xx, 429…), not a verdict on the refresh token.
+    throw new TransientRefreshError(`Token refresh failed with status ${res.status}`);
   }
 
   type RefreshResponseBody = {
     success: boolean;
     data: { accessToken: string; accessTokenExpiresAt: string | number; refreshToken: string };
   };
-  const body = await res.json() as RefreshResponseBody;
+  let body: RefreshResponseBody;
+  try {
+    body = await res.json() as RefreshResponseBody;
+  } catch {
+    // Truncated in transit on a flaky connection.
+    throw new TransientRefreshError("Incomplete token refresh response");
+  }
 
   if (!body.success || !body.data) {
     performLogout();

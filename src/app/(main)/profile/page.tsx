@@ -8,6 +8,7 @@ import { ChevronRight, Loader2, LogOut, Pencil, Settings, User } from "lucide-re
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { EditNameDrawer } from "@/components/profile/edit-name-drawer";
+import { InstallAppCard } from "@/components/profile/install-app-card";
 import { performLogout } from "@/auth/tokenManager";
 import { fetchPreferences, fetchProfile, type UserProfile } from "@/lib/api/profile";
 
@@ -139,6 +140,8 @@ export default function ProfilePage() {
               <ChevronRight className="size-4 shrink-0 text-warning" />
             </Link>
           )}
+
+          <InstallAppCard />
 
           <button
             type="button"

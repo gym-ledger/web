@@ -7,7 +7,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "APEX — Science-based Training",
     short_name: "APEX",
     description: "Track workouts, build strength, achieve your goals.",
-    start_url: "/",
+    // Stable identity for the installed app, independent of start_url.
+    id: "/",
+    // "/" only redirects to /home — launching there directly saves a round
+    // trip and gives the service worker a plain (non-redirect) page to cache.
+    start_url: "/home",
+    scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#000000",

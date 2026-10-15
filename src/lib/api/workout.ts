@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { writeCachedApiResponse } from "@/lib/offline/apiResponseCache";
 
 // ---------------------------------------------------------------------------
 // Plans
@@ -321,8 +322,14 @@ export async function fetchSessionSets(sessionId: string): Promise<WorkoutSet[]>
   return apiClient.get<WorkoutSet[]>(`/user/workout/sessions/${sessionId}/sets`);
 }
 
+const ONGOING_SESSION_PATH = "/user/workout/sessions/ongoing";
+
 export async function finishWorkoutSession(sessionId: string): Promise<WorkoutSession> {
-  return apiClient.post<WorkoutSession>(`/user/workout/sessions/${sessionId}/finish`);
+  const finished = await apiClient.post<WorkoutSession>(`/user/workout/sessions/${sessionId}/finish`);
+  // The offline copy of "workout in progress" would otherwise still point at
+  // this workout, and reopening the app offline would resume a finished one.
+  await writeCachedApiResponse(ONGOING_SESSION_PATH, null);
+  return finished;
 }
 
 export interface OngoingWorkoutSession {
@@ -337,7 +344,7 @@ export interface OngoingWorkoutSession {
 }
 
 export async function fetchOngoingWorkoutSession(): Promise<OngoingWorkoutSession | null> {
-  return apiClient.get<OngoingWorkoutSession | null>("/user/workout/sessions/ongoing");
+  return apiClient.get<OngoingWorkoutSession | null>(ONGOING_SESSION_PATH);
 }
 
 // ---------------------------------------------------------------------------

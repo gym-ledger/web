@@ -41,6 +41,7 @@ import {
   type WorkoutSet,
 } from "@/lib/api/workout";
 import type { ExerciseListItem } from "@/lib/api/exercises";
+import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 type Step =
@@ -374,6 +375,13 @@ export default function ActiveWorkoutPage() {
                 assignmentId: pick.assignmentObj.id,
                 programDayId: pick.dayObj.id,
                 programDaySessionId: pick.sessionObj.id,
+              }).catch((err) => {
+                // Offline: the in-progress session is already known, so
+                // resume it rather than failing to open the workout.
+                if (err instanceof ApiError && err.status === 0) {
+                  return { id: ongoing.session_id, started_at: ongoing.started_at };
+                }
+                throw err;
               }),
               false,
             );

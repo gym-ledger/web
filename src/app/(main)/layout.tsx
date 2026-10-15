@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/shared/bottom-nav";
+import { OfflineBanner } from "@/components/shared/offline-banner";
 import { useAuthStore } from "@/auth/authStore";
 
 const FULLSCREEN_ROUTES = ["/workout/active"];
@@ -36,6 +37,8 @@ export default function MainLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      {/* The active workout has its own sync bar. */}
+      {!isFullscreen && <OfflineBanner />}
       <main className={isFullscreen ? "flex-1" : "flex-1 pb-24"}>
         {children}
       </main>

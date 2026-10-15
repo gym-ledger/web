@@ -1,4 +1,4 @@
-import { getValidAccessToken, performLogout } from "./tokenManager";
+import { getValidAccessToken, performLogout, TransientRefreshError } from "./tokenManager";
 
 type WsState = "disconnected" | "connecting" | "connected" | "reconnecting";
 
@@ -85,7 +85,13 @@ export class WebSocketManager {
       await getValidAccessToken();
       this.reconnectAttempts = 0;
       await this.connect();
-    } catch {
+    } catch (err) {
+      // Offline / server down isn't an auth failure — retry later instead.
+      if (err instanceof TransientRefreshError) {
+        this.isHandlingReconnect = false;
+        this.scheduleReconnect();
+        return;
+      }
       performLogout();
     }
   }

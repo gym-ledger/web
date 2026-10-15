@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AuthStatus, AuthTokens, AuthUser } from "./authTypes";
 import { STORAGE_KEY, normalizeExpiresAt } from "./authConstants";
+import { clearApiResponseCache } from "@/lib/offline/apiResponseCache";
 
 interface AuthState {
   _hasHydrated: boolean;
@@ -54,6 +55,8 @@ export const useAuthStore = create<AuthState>()(
       },
 
       clearAuth: () => {
+        // Offline copies of API data belong to this user.
+        void clearApiResponseCache();
         set({
           accessToken: null,
           accessTokenExpiresAt: null,

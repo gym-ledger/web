@@ -1,5 +1,10 @@
-import { getValidAccessToken, refreshAccessToken, performLogout } from "@/auth/tokenManager";
+import { getValidAccessToken, refreshAccessToken, performLogout, TransientRefreshError } from "@/auth/tokenManager";
 import { useAuthStore } from "@/auth/authStore";
+import {
+  currentCacheGeneration,
+  readCachedApiResponse,
+  writeCachedApiResponse,
+} from "@/lib/offline/apiResponseCache";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -69,7 +74,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     let newToken: string;
     try {
       newToken = await refreshAccessToken();
-    } catch {
+    } catch (err) {
+      if (err instanceof TransientRefreshError) {
+        throw new ApiError(0, "Network error — check your connection and try again");
+      }
       performLogout();
       throw new ApiError(401, "Session expired");
     }
@@ -106,8 +114,29 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return body?.data as T;
 }
 
+/**
+ * GETs remember their last good response; when the network is down (status
+ * 0: offline / timeout) that copy is returned instead, so screens already
+ * visited keep working at the gym with no signal. Real API errors (4xx/5xx)
+ * are never masked.
+ */
+async function cachedGet<T>(path: string): Promise<T> {
+  const cacheGeneration = currentCacheGeneration();
+  try {
+    const data = await request<T>(path, { method: "GET" });
+    void writeCachedApiResponse(path, data, cacheGeneration);
+    return data;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 0) {
+      const cached = await readCachedApiResponse<T>(path);
+      if (cached.found) return cached.data;
+    }
+    throw err;
+  }
+}
+
 export const apiClient = {
-  get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  get: <T>(path: string) => cachedGet<T>(path),
 
   post: <T>(path: string, body?: unknown, options?: Pick<RequestOptions, "auth">) =>
     request<T>(path, {
