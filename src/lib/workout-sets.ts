@@ -38,6 +38,17 @@ export function groupSetsWithDropsets<T extends DropsetAwareSet>(sets: T[]): Gro
   }));
 }
 
+/** "60+20kg × 8". "Weight" is the added weight (e.g. plates); "tool weight" is the bar/equipment itself. */
+export function formatWeightReps(weight: number | null, toolWeight: number | null, reps: number | null) {
+  const load =
+    weight == null && toolWeight == null
+      ? "BW"
+      : toolWeight != null && toolWeight > 0
+        ? `${weight ?? 0}+${toolWeight}kg`
+        : `${weight ?? 0}kg`;
+  return `${load} × ${reps ?? "—"}`;
+}
+
 /** "3:05" style elapsed time between two set timestamps — used to show rest time between consecutive sets. */
 export function formatElapsedSince(fromIso: string, toIso: string) {
   const totalSeconds = Math.max(

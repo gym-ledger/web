@@ -7,10 +7,12 @@ import {
   type PlanExercise,
   type WorkoutSet,
   type UpdateSetPayload,
-  type ExerciseHistorySet,
+  type ExerciseHistorySession,
 } from "@/lib/api/workout";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
-import { groupSetsWithDropsets, formatElapsedSince } from "@/lib/workout-sets";
+import { PastSetPickerSheet, type PickableSet } from "./past-set-picker-sheet";
+import { groupSetsWithDropsets, formatElapsedSince, type GroupedSet } from "@/lib/workout-sets";
+import { useLongPress } from "@/lib/use-long-press";
 import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 import { cn } from "@/lib/utils";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
@@ -196,10 +198,19 @@ export function ExerciseLogCard({
   // so rows update the moment the sync manager flushes them.
   const pendingSetUpdates = useWorkoutSetUpdateQueueStore((state) => state.queue);
 
-  // Most recent session comes from the parent's preloaded history cache
-  // (fetched in the background when the workout started) rather than a fetch
-  // triggered by expanding this card.
-  const lastSession = history?.sessions[0] ?? null;
+  // Full history, once "View all logs" under Previous performance has loaded
+  // it — lets the press-and-hold set picker reach past the preloaded sessions.
+  const [fullHistory, setFullHistory] = useState<ExerciseHistorySession[] | null>(null);
+  const [setPickerOpen, setSetPickerOpen] = useState(false);
+
+  // Past sessions come from the parent's preloaded history cache (fetched in
+  // the background when the workout started) rather than a fetch triggered by
+  // expanding this card. A resumed workout's own synced sets can show up in
+  // that history, so this workout is filtered out — it isn't "last time".
+  const pastSessions = (fullHistory ?? history?.sessions ?? []).filter(
+    (s) => s.workout_session_id !== workoutSessionId,
+  );
+  const lastSession = pastSessions[0] ?? null;
   const prefillLoading = history?.loading ?? false;
 
   const exerciseName = exercise.exercise?.name ?? "Exercise";
@@ -286,28 +297,33 @@ export function ExerciseLogCard({
     setDropSets((prev) => prev.map((d) => (d.key === key ? { ...d, ...patch } : d)));
   }
 
-  function dropSetRowsFromHistory(drops: ExerciseHistorySet[]): DropSetRow[] {
-    return drops.map((d) => ({
-      key: crypto.randomUUID(),
-      weight: d.weight != null ? String(d.weight) : "",
-      toolWeight: d.tool_weight != null ? String(d.tool_weight) : "",
-      reps: d.reps != null ? String(d.reps) : "",
-      rir: d.rir != null ? String(d.rir) : "",
-      effort: d.effort ?? "",
-      discomfort: d.discomfort_notes ?? "",
-    }));
-  }
-
-  function dropSetRowsFromWorkoutSets(drops: WorkoutSet[]): DropSetRow[] {
-    return drops.map((d) => ({
-      key: crypto.randomUUID(),
-      weight: d.weight != null ? String(d.weight) : "",
-      toolWeight: d.tool_weight != null ? String(d.tool_weight) : "",
-      reps: d.reps != null ? String(d.reps) : "",
-      rir: d.rir != null ? String(d.rir) : "",
-      effort: d.effort ?? "",
-      discomfort: d.discomfort_notes ?? "",
-    }));
+  /**
+   * Copies a set (and its drop sets) into the new-set form. Only history
+   * rows carry an alarm message; a set from this workout clears it.
+   */
+  function fillFromSet({ main: s, drops }: GroupedSet<PickableSet>) {
+    const str = (n: number | null) => (n != null ? String(n) : "");
+    const alarmMessage = "alarm_message" in s ? (s.alarm_message ?? "") : "";
+    setWeight(str(s.weight));
+    setToolWeight(str(s.tool_weight));
+    setReps(str(s.reps));
+    setRir(str(s.rir));
+    setEffort(s.effort ?? "");
+    setDiscomfort(s.discomfort_notes ?? "");
+    setIsWarmup(s.is_warmup ?? false);
+    setAlarm(alarmMessage);
+    setShowAlarmInput(!!alarmMessage);
+    setDropSets(
+      drops.map((d) => ({
+        key: crypto.randomUUID(),
+        weight: str(d.weight),
+        toolWeight: str(d.tool_weight),
+        reps: str(d.reps),
+        rir: str(d.rir),
+        effort: d.effort ?? "",
+        discomfort: d.discomfort_notes ?? "",
+      })),
+    );
   }
 
   const lastGroupedSets = lastSession ? groupSetsWithDropsets(lastSession.sets) : [];
@@ -316,34 +332,18 @@ export function ExerciseLogCard({
   // just logged this session instead of leaving the button dead.
   const currentLatestGroup = groupedSets.length > 0 ? groupedSets[groupedSets.length - 1] : null;
   const canPrefill = !!lastMatchingGroup || !!currentLatestGroup;
+  // Anything at all the press-and-hold picker could offer.
+  const canPickSet = sets.length > 0 || pastSessions.length > 0;
+
+  const prefillPress = useLongPress(() => setSetPickerOpen(true));
 
   function handlePrefill() {
-    if (lastMatchingGroup) {
-      const s = lastMatchingGroup.main;
-      setWeight(s.weight != null ? String(s.weight) : "");
-      setToolWeight(s.tool_weight != null ? String(s.tool_weight) : "");
-      setReps(s.reps != null ? String(s.reps) : "");
-      setRir(s.rir != null ? String(s.rir) : "");
-      setEffort(s.effort ?? "");
-      setDiscomfort(s.discomfort_notes ?? "");
-      setIsWarmup(s.is_warmup ?? false);
-      setAlarm(s.alarm_message ?? "");
-      setShowAlarmInput(!!s.alarm_message);
-      setDropSets(dropSetRowsFromHistory(lastMatchingGroup.drops));
-      return;
-    }
-    if (currentLatestGroup) {
-      const s = currentLatestGroup.main;
-      setWeight(s.weight != null ? String(s.weight) : "");
-      setToolWeight(s.tool_weight != null ? String(s.tool_weight) : "");
-      setReps(s.reps != null ? String(s.reps) : "");
-      setRir(s.rir != null ? String(s.rir) : "");
-      setEffort(s.effort ?? "");
-      setDiscomfort(s.discomfort_notes ?? "");
-      setIsWarmup(s.is_warmup);
-      setAlarm("");
-      setShowAlarmInput(false);
-      setDropSets(dropSetRowsFromWorkoutSets(currentLatestGroup.drops));
+    if (prefillPress.consumeClick()) return;
+    const group = lastMatchingGroup ?? currentLatestGroup;
+    if (group) {
+      fillFromSet(group);
+    } else {
+      setSetPickerOpen(true);
     }
   }
 
@@ -782,7 +782,14 @@ export function ExerciseLogCard({
               <Eraser className="size-3.5" />
               Clear
             </button>
-            <button type="button" onClick={handlePrefill} disabled={prefillLoading || !canPrefill} className={CHIP}>
+            <button
+              type="button"
+              {...prefillPress.handlers}
+              onClick={handlePrefill}
+              disabled={prefillLoading || !(canPrefill || canPickSet)}
+              title="Press and hold to choose any logged set"
+              className={cn(CHIP, "touch-manipulation select-none [-webkit-touch-callout:none]")}
+            >
               {prefillLoading ? <Loader2 className="size-3.5 animate-spin" /> : <History className="size-3.5" />}
               Prefill last time
             </button>
@@ -1018,7 +1025,22 @@ export function ExerciseLogCard({
         </div>
       </div>
 
-      {exercise.exercise && <ExerciseHistoryPanel exerciseId={exercise.exercise.id} preloaded={history} />}
+      {exercise.exercise && (
+        <ExerciseHistoryPanel exerciseId={exercise.exercise.id} preloaded={history} onAllLoaded={setFullHistory} />
+      )}
+
+      <PastSetPickerSheet
+        open={setPickerOpen}
+        exerciseName={exerciseName}
+        currentSets={sets}
+        sessions={pastSessions}
+        hasFullHistory={fullHistory != null}
+        onPick={(group) => {
+          fillFromSet(group);
+          setSetPickerOpen(false);
+        }}
+        onClose={() => setSetPickerOpen(false)}
+      />
     </div>
   );
 }

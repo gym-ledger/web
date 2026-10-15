@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, History, Loader2 } from "lucide-react";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
-import { groupSetsWithDropsets, formatElapsedSince } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatElapsedSince, formatWeightReps } from "@/lib/workout-sets";
 import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 
 interface ExerciseHistoryPanelProps {
@@ -16,27 +16,19 @@ interface ExerciseHistoryPanelProps {
    * "View all logs" still hits the API for anything beyond what's preloaded.
    */
   preloaded?: ExerciseHistoryCacheEntry;
+  /** Called with the full history once "View all logs" has loaded it. */
+  onAllLoaded?: (sessions: ExerciseHistorySession[]) => void;
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** "Weight" is the added weight (e.g. plates); "tool weight" is the bar/equipment itself. */
-function formatWeightReps(weight: number | null, toolWeight: number | null, reps: number | null) {
-  const load =
-    weight == null && toolWeight == null
-      ? "BW"
-      : toolWeight != null && toolWeight > 0
-        ? `${weight ?? 0}+${toolWeight}kg`
-        : `${weight ?? 0}kg`;
-  return `${load} × ${reps ?? "—"}`;
-}
-
 export function ExerciseHistoryPanel({
   exerciseId,
   beforeSessionId,
   preloaded,
+  onAllLoaded,
 }: ExerciseHistoryPanelProps) {
   // Opens straight away when the data is already preloaded (active workout) —
   // otherwise it waits for a tap before fetching.
@@ -53,6 +45,7 @@ export function ExerciseHistoryPanel({
       const data = await fetchExerciseHistory(exerciseId, 200, beforeSessionId);
       setFetchedSessions(data);
       setShowingAll(true);
+      onAllLoaded?.(data);
     } catch {
       setFetchedSessions([]);
       setShowingAll(true);
