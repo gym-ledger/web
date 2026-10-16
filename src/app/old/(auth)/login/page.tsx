@@ -100,7 +100,6 @@ export default function LoginPage() {
       setTokens(
         {
           accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
           accessTokenExpiresAt: data.accessTokenExpiresAt,
         },
         data.user,

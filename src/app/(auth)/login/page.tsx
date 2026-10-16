@@ -13,10 +13,12 @@ import { loginWithPassword, sendLoginOtp, verifyLoginOtp, type LoginResponse } f
 import {
   IdentityField,
   IdentityMethodToggle,
+  emptyIdentity,
   identityLabel,
   toIdentity,
   type IdentityValue,
 } from "@/components/auth/identity-field";
+import { useAuthConfig } from "@/components/auth/use-auth-config";
 import { OtpInput, OTP_LENGTH, emptyOtp } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
 
@@ -33,13 +35,14 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("code");
 
   // input step
-  const [identity, setIdentity] = useState<IdentityValue>({
-    method: "email",
-    email: "user@user.com",
-    phoneCode: "+1",
-    phoneNumber: "",
-  });
+  const [identity, setIdentity] = useState<IdentityValue>(emptyIdentity);
   const [password, setPassword] = useState("");
+
+  // Codes always go to email; to phone numbers only when the instance has
+  // WhatsApp delivery set up. Otherwise phone numbers sign in by password.
+  const { phoneOtpEnabled } = useAuthConfig();
+  const codeAvailable = identity.method === "email" || phoneOtpEnabled;
+  const activeMode: Mode = codeAvailable ? mode : "password";
 
   // otp step
   const [otpDigits, setOtpDigits] = useState(emptyOtp);
@@ -62,7 +65,6 @@ export default function LoginPage() {
     setTokens(
       {
         accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
         accessTokenExpiresAt: data.accessTokenExpiresAt,
       },
       data.user,
@@ -161,7 +163,7 @@ export default function LoginPage() {
                 <span className="label-caps text-primary">Sign in</span>
                 <h1 className="font-display text-[34px] leading-none font-bold">Let&apos;s train.</h1>
                 <p className="text-sm text-muted-foreground">
-                  {mode === "code"
+                  {activeMode === "code"
                     ? "We'll send a one-time code — no password needed."
                     : "Sign in with your password."}
                 </p>
@@ -199,12 +201,12 @@ export default function LoginPage() {
               transition={{ duration: 0.22 }}
             >
               <form
-                onSubmit={mode === "code" ? handleSendOtp : handlePasswordLogin}
+                onSubmit={activeMode === "code" ? handleSendOtp : handlePasswordLogin}
                 className="flex flex-col gap-3"
               >
                 <IdentityField value={identity} onChange={changeIdentity} autoFocus />
 
-                {mode === "password" && (
+                {activeMode === "password" && (
                   <>
                     <PasswordField
                       label="Password"
@@ -232,7 +234,7 @@ export default function LoginPage() {
                   variant="light"
                   className={cn("mt-1 w-full", loading && "opacity-70")}
                 >
-                  {mode === "code"
+                  {activeMode === "code"
                     ? loading ? "Sending code…" : "Send code"
                     : loading ? "Signing in…" : "Sign in"}
                 </Button>
@@ -240,13 +242,15 @@ export default function LoginPage() {
 
               <div className="mt-4 flex flex-col">
                 <IdentityMethodToggle value={identity} onChange={changeIdentity} />
-                <button
-                  type="button"
-                  onClick={switchMode}
-                  className="flex min-h-11 w-full items-center justify-center text-sm font-medium text-muted-foreground hover:text-foreground"
-                >
-                  {mode === "code" ? "Use a password instead" : "Send me a code instead"}
-                </button>
+                {codeAvailable && (
+                  <button
+                    type="button"
+                    onClick={switchMode}
+                    className="flex min-h-11 w-full items-center justify-center text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    {activeMode === "code" ? "Use a password instead" : "Send me a code instead"}
+                  </button>
+                )}
               </div>
             </motion.div>
           ) : (
@@ -322,9 +326,11 @@ export default function LoginPage() {
         </AnimatePresence>
 
         <p className="mt-8 text-[13px] text-muted-foreground">
-          {mode === "code"
+          {activeMode === "code"
             ? "New here? The same code creates your account."
-            : "No password yet? Sign in with a code, then set one in Profile → Settings."}
+            : codeAvailable
+              ? "No password yet? Sign in with a code, then set one in Profile → Settings."
+              : "New here, or no password yet? Sign in with your email to get a code."}
         </p>
       </motion.div>
     </div>

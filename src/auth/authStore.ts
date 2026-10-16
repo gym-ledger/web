@@ -11,14 +11,18 @@ interface AuthState {
   status: AuthStatus;
   accessToken: string | null;
   accessTokenExpiresAt: number | null;
-  refreshToken: string | null;
+  /**
+   * Whether this browser signed in and hasn't signed out. The refresh token
+   * itself lives in an httpOnly cookie JS can't see, so this flag is what
+   * tells the app a refresh is worth attempting on start-up.
+   */
+  hasSession: boolean;
   user: AuthUser | null;
 
   setHasHydrated: (v: boolean) => void;
   setStatus: (status: AuthStatus) => void;
   setTokens: (tokens: AuthTokens, user?: AuthUser) => void;
   setAccessToken: (accessToken: string, expiresAt: number) => void;
-  setRefreshToken: (refreshToken: string) => void;
   clearAuth: () => void;
 }
 
@@ -29,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
       status: "loading",
       accessToken: null,
       accessTokenExpiresAt: null,
-      refreshToken: null,
+      hasSession: false,
       user: null,
 
       setHasHydrated: (v) => set({ _hasHydrated: v }),
@@ -40,18 +44,14 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: tokens.accessToken,
           accessTokenExpiresAt: normalizeExpiresAt(tokens.accessTokenExpiresAt),
-          refreshToken: tokens.refreshToken,
+          hasSession: true,
           user: user ?? null,
           status: "authenticated",
         });
       },
 
       setAccessToken: (accessToken, expiresAt) => {
-        set({ accessToken, accessTokenExpiresAt: expiresAt, status: "authenticated" });
-      },
-
-      setRefreshToken: (refreshToken) => {
-        set({ refreshToken });
+        set({ accessToken, accessTokenExpiresAt: expiresAt, hasSession: true, status: "authenticated" });
       },
 
       clearAuth: () => {
@@ -60,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: null,
           accessTokenExpiresAt: null,
-          refreshToken: null,
+          hasSession: false,
           user: null,
           status: "unauthenticated",
         });
@@ -68,14 +68,18 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: STORAGE_KEY,
-      partialize: (state) => ({ refreshToken: state.refreshToken }),
+      // v0 persisted the refresh token itself. v1 drops it from storage
+      // (it now lives in an httpOnly cookie), so a v0 session signs in again.
+      version: 1,
+      migrate: () => ({ hasSession: false }),
+      partialize: (state) => ({ hasSession: state.hasSession }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         state.setHasHydrated(true);
-        if (!state.refreshToken) {
+        if (!state.hasSession) {
           state.clearAuth();
         }
-        // If refreshToken present, status stays "loading" until authBootstrap validates it
+        // If a session exists, status stays "loading" until authBootstrap refreshes it
       },
     },
   ),

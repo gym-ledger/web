@@ -56,6 +56,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     res = await fetch(`${API_BASE}${path}`, {
       ...fetchOptions,
       headers,
+      // Lets sign-in responses set the httpOnly refresh cookie (cross-origin
+      // fetches ignore Set-Cookie otherwise). The cookie is path-scoped to
+      // /auth on the API, so other calls never carry it.
+      credentials: "include",
       signal: fetchOptions.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
@@ -66,8 +70,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (res.status === 401 && auth && !_retried) {
-    const { refreshToken } = useAuthStore.getState();
-    if (!refreshToken) {
+    if (!useAuthStore.getState().hasSession) {
       throw new ApiError(401, "Unauthorized");
     }
 

@@ -21,6 +21,7 @@ import {
   toIdentity,
   type IdentityValue,
 } from "@/components/auth/identity-field";
+import { useAuthConfig } from "@/components/auth/use-auth-config";
 import { OtpInput, OTP_LENGTH, emptyOtp } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
 
@@ -38,6 +39,7 @@ const HEADINGS: Record<Step, { eyebrow: string; title: string }> = {
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<Step>("input");
   const [identity, setIdentity] = useState<IdentityValue>(emptyIdentity);
+  const { phoneOtpEnabled } = useAuthConfig();
   const [otpDigits, setOtpDigits] = useState(emptyOtp);
   const [resendCountdown, setResendCountdown] = useState(0);
   const [resetToken, setResetToken] = useState<string | null>(null);
@@ -188,13 +190,16 @@ export default function ForgotPasswordPage() {
                     {loading ? "Sending code…" : "Send code"}
                   </Button>
                 </form>
-                <div className="mt-4">
-                  <IdentityMethodToggle
-                    value={identity}
-                    onChange={(v) => { setIdentity(v); setError(null); }}
-                    verb="Reset"
-                  />
-                </div>
+                {/* Resetting needs a code, so phone numbers are offered only when phone codes are enabled. */}
+                {phoneOtpEnabled && (
+                  <div className="mt-4">
+                    <IdentityMethodToggle
+                      value={identity}
+                      onChange={(v) => { setIdentity(v); setError(null); }}
+                      verb="Reset"
+                    />
+                  </div>
+                )}
               </>
             )}
 

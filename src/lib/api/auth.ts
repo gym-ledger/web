@@ -6,11 +6,17 @@ export type Identity =
   | { method: "email"; email: string }
   | { method: "phone"; phoneNumber: { code: string; number: string } };
 
+/** The refresh token isn't here: the API sets it as an httpOnly cookie. */
 export interface LoginResponse {
   accessToken: string;
-  refreshToken: string;
   accessTokenExpiresAt: string | number;
   user: AuthUser;
+}
+
+/** Instance settings that change which sign-in options the UI offers. */
+export interface AuthConfig {
+  /** Whether codes can be sent to phone numbers (over WhatsApp). */
+  phoneOtpEnabled: boolean;
 }
 
 // Mirrors PASSWORD_MIN_LENGTH / PASSWORD_MAX_LENGTH on the API.
@@ -18,6 +24,10 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
 const PUBLIC = { auth: false };
+
+export function getAuthConfig() {
+  return apiClient.get<AuthConfig>("/auth/config");
+}
 
 export function sendLoginOtp(identity: Identity) {
   return apiClient.post<null>("/auth/login/send-otp", identity, PUBLIC);

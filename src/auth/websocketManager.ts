@@ -44,10 +44,14 @@ export class WebSocketManager {
       return;
     }
 
-    const url = `${this.options.url}?token=${encodeURIComponent(token)}`;
-    this.ws = new WebSocket(url);
+    // The token is never put in the URL: query strings end up in proxy and
+    // server access logs. It goes in the first frame instead, and the server
+    // must authenticate that frame before trusting the socket (closing with
+    // 4001 otherwise, which triggers handleAuthClose below).
+    this.ws = new WebSocket(this.options.url);
 
     this.ws.onopen = () => {
+      this.ws?.send(JSON.stringify({ type: "auth", token }));
       this.state = "connected";
       this.reconnectAttempts = 0;
       this.isHandlingReconnect = false;
