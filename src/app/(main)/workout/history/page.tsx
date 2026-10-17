@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ChevronRight, Loader2 } from "lucide-react";
@@ -8,7 +8,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   fetchWorkoutSessions,
   type WorkoutSessionListItem,
+  type WorkoutSessionsPage,
 } from "@/lib/api/workout";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+
+const PAGE_SIZE = 20;
 
 function formatWeekday(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { weekday: "short" });
@@ -71,28 +75,30 @@ function SessionRow({ session, delay }: { session: WorkoutSessionListItem; delay
 }
 
 export default function WorkoutHistoryPage() {
-  const [sessions, setSessions] = useState<WorkoutSessionListItem[]>([]);
+  // Page 1 is saved and shows instantly; "Load more" pages are fetched on demand.
+  const firstPage = useCachedQuery<WorkoutSessionsPage>(`history/page-1/${PAGE_SIZE}`, () =>
+    fetchWorkoutSessions({ page: 1, limit: PAGE_SIZE }),
+  );
+  const [morePages, setMorePages] = useState<WorkoutSessionListItem[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    fetchWorkoutSessions({ page: 1, limit: 20 })
-      .then((res) => {
-        setSessions(res.data);
-        setTotalPages(res.meta.totalPages);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const loading = firstPage.loading;
+  const totalPages = firstPage.data?.meta.totalPages ?? 1;
+  // De-duplicated: a refreshed page 1 can overlap pages loaded before it arrived.
+  const seen = new Set<string>();
+  const sessions = [...(firstPage.data?.data ?? []), ...morePages].filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
 
   async function handleLoadMore() {
     const nextPage = page + 1;
     setLoadingMore(true);
     try {
-      const res = await fetchWorkoutSessions({ page: nextPage, limit: 20 });
-      setSessions((prev) => [...prev, ...res.data]);
+      const res = await fetchWorkoutSessions({ page: nextPage, limit: PAGE_SIZE });
+      setMorePages((prev) => [...prev, ...res.data]);
       setPage(nextPage);
     } catch {
       // no-op — user can tap "Load more" again

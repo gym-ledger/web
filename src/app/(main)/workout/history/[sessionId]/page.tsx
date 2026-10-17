@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, CircleAlert, CornerDownRight, Loader2 } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   type WorkoutSet,
 } from "@/lib/api/workout";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
 /** How far back to look for the previous run of the same day, and for PRs set during this session. */
@@ -127,31 +128,17 @@ async function loadSummary(session: WorkoutSessionDetail): Promise<Summary> {
 }
 
 function DetailContent({ sessionId, justCompleted }: { sessionId: string; justCompleted: boolean }) {
-  const [session, setSession] = useState<WorkoutSessionDetail | null>(null);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchWorkoutSessionDetail(sessionId)
-      .then((detail) => {
-        if (cancelled) return;
-        setSession(detail);
-        loadSummary(detail).then((s) => {
-          if (!cancelled) setSummary(s);
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId]);
+  const detailQuery = useCachedQuery<WorkoutSessionDetail>(`history/session/${sessionId}`, () =>
+    fetchWorkoutSessionDetail(sessionId),
+  );
+  const session = detailQuery.data ?? null;
+  // The summary needs the session, so it starts once that is known (saved or fresh).
+  const summary =
+    useCachedQuery<Summary>(session ? `history/session/${sessionId}/summary` : null, () => loadSummary(session!))
+      .data ?? null;
+  const loading = detailQuery.loading;
+  // Saved data stays on screen when a refresh fails (e.g. offline).
+  const error = !!detailQuery.error && !session;
 
   if (loading) {
     return (

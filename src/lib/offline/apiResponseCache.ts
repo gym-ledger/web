@@ -18,8 +18,17 @@ const KEY_PREFIX = "/__api-cache__";
 // user's data into the next session.
 let generation = 0;
 
+// In-memory mirror of what was read or written this page session, so a
+// screen visited before renders on its first frame without an async read.
+const memory = new Map<string, unknown>();
+
 export function currentCacheGeneration() {
   return generation;
+}
+
+/** Synchronous read of the in-memory copy (only what this tab already saw). */
+export function peekCachedApiResponse<T>(path: string): { found: true; data: T } | { found: false } {
+  return memory.has(path) ? { found: true, data: memory.get(path) as T } : { found: false };
 }
 
 function isAvailable() {
@@ -39,7 +48,9 @@ export async function writeCachedApiResponse(
   data: unknown,
   requestGeneration = generation,
 ): Promise<void> {
-  if (!isAvailable() || requestGeneration !== generation) return;
+  if (requestGeneration !== generation) return;
+  memory.set(path, data ?? null);
+  if (!isAvailable()) return;
   try {
     const cache = await caches.open(CACHE_NAME);
     if (requestGeneration !== generation) return;
@@ -56,12 +67,18 @@ export async function writeCachedApiResponse(
 
 /** The stored response for `path`, or `{ found: false }`. Never throws. */
 export async function readCachedApiResponse<T>(path: string): Promise<{ found: true; data: T } | { found: false }> {
+  const inMemory = peekCachedApiResponse<T>(path);
+  if (inMemory.found) return inMemory;
   if (!isAvailable()) return { found: false };
+  const readGeneration = generation;
   try {
     const cache = await caches.open(CACHE_NAME);
     const res = await cache.match(keyFor(path));
     if (!res) return { found: false };
     const body = (await res.json()) as { data: T };
+    // Cleared (logout) while reading: don't hand the old user's data back.
+    if (readGeneration !== generation) return { found: false };
+    memory.set(path, body.data);
     return { found: true, data: body.data };
   } catch {
     return { found: false };
@@ -71,6 +88,7 @@ export async function readCachedApiResponse<T>(path: string): Promise<{ found: t
 /** Drops every stored response — on logout, so the next user never sees them. */
 export async function clearApiResponseCache(): Promise<void> {
   generation++;
+  memory.clear();
   if (!isAvailable()) return;
   try {
     await caches.delete(CACHE_NAME);

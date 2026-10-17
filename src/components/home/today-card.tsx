@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Play, ChevronRight, Moon, Plus, Check } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,6 +11,7 @@ import {
   fetchSessionExercises,
   fetchWorkoutSessions,
 } from "@/lib/api/workout";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 type CardState =
   | { status: "loading" }
@@ -71,83 +71,74 @@ function formatDuration(startedAtIso: string, completedAtIso: string) {
   return `${h}h ${m}min`;
 }
 
-export function TodayCard() {
-  const [state, setState] = useState<CardState>({ status: "loading" });
+function localDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
-  useEffect(() => {
-    let cancelled = false;
+/** Works out what today's card shows. Several requests, saved as one result. */
+async function loadTodayCard(): Promise<CardState> {
+  const [activePlans, recentSessions] = await Promise.all([
+    fetchActiveWorkoutPlans(),
+    fetchWorkoutSessions({ limit: 10 }),
+  ]);
 
-    async function load() {
-      const [activePlans, recentSessions] = await Promise.all([
-        fetchActiveWorkoutPlans(),
-        fetchWorkoutSessions({ limit: 10 }),
-      ]);
-      if (cancelled) return;
+  if (activePlans.length === 0) {
+    return { status: "no-program" };
+  }
 
-      if (activePlans.length === 0) {
-        setState({ status: "no-program" });
-        return;
-      }
-
-      const completedToday = recentSessions.data.find(
-        (s) => s.completed_at && isToday(s.completed_at),
-      );
-      if (completedToday) {
-        setState({
-          status: "completed",
-          programName: completedToday.plan_name,
-          dayName: completedToday.day_name,
-          sessionId: completedToday.id,
-          duration: formatDuration(completedToday.started_at, completedToday.completed_at as string),
-        });
-        return;
-      }
-
-      // "Last used" plan, if there's history for one that's still active —
-      // otherwise the most recently added active plan (already the API's
-      // default order).
-      const mostRecentSession = recentSessions.data[0];
-      const currentPlan =
-        (mostRecentSession &&
-          activePlans.find((p) => p.id === mostRecentSession.program_assignment_id)) ||
-        activePlans[0];
-
-      const days = await fetchProgramDays(currentPlan.id);
-      if (cancelled) return;
-      const todayDay = days.find((d) => d.day_number === isoWeekday(new Date()));
-
-      if (!todayDay) {
-        setState({ status: "rest-day", programName: currentPlan.program_name });
-        return;
-      }
-
-      const sessions = await fetchProgramDaySessions(currentPlan.id, todayDay.id);
-      if (cancelled) return;
-      const exerciseLists = await Promise.all(
-        sessions.map((s) => fetchSessionExercises(currentPlan.id, todayDay.id, s.id)),
-      );
-      if (cancelled) return;
-      const exercises: ExercisePreview[] = exerciseLists.flat().flatMap((pe) =>
-        pe.exercise
-          ? [{ name: pe.exercise.name, target: formatTarget(pe.target_sets, pe.min_reps, pe.max_reps) }]
-          : [],
-      );
-
-      setState({
-        status: "scheduled",
-        programName: currentPlan.program_name,
-        dayName: todayDay.name,
-        exercises,
-      });
-    }
-
-    load().catch(() => {
-      if (!cancelled) setState({ status: "hidden" });
-    });
-    return () => {
-      cancelled = true;
+  const completedToday = recentSessions.data.find(
+    (s) => s.completed_at && isToday(s.completed_at),
+  );
+  if (completedToday) {
+    return {
+      status: "completed",
+      programName: completedToday.plan_name,
+      dayName: completedToday.day_name,
+      sessionId: completedToday.id,
+      duration: formatDuration(completedToday.started_at, completedToday.completed_at as string),
     };
-  }, []);
+  }
+
+  // "Last used" plan, if there's history for one that's still active —
+  // otherwise the most recently added active plan (already the API's
+  // default order).
+  const mostRecentSession = recentSessions.data[0];
+  const currentPlan =
+    (mostRecentSession &&
+      activePlans.find((p) => p.id === mostRecentSession.program_assignment_id)) ||
+    activePlans[0];
+
+  const days = await fetchProgramDays(currentPlan.id);
+  const todayDay = days.find((d) => d.day_number === isoWeekday(new Date()));
+
+  if (!todayDay) {
+    return { status: "rest-day", programName: currentPlan.program_name };
+  }
+
+  const sessions = await fetchProgramDaySessions(currentPlan.id, todayDay.id);
+  const exerciseLists = await Promise.all(
+    sessions.map((s) => fetchSessionExercises(currentPlan.id, todayDay.id, s.id)),
+  );
+  const exercises: ExercisePreview[] = exerciseLists.flat().flatMap((pe) =>
+    pe.exercise
+      ? [{ name: pe.exercise.name, target: formatTarget(pe.target_sets, pe.min_reps, pe.max_reps) }]
+      : [],
+  );
+
+  return {
+    status: "scheduled",
+    programName: currentPlan.program_name,
+    dayName: todayDay.name,
+    exercises,
+  };
+}
+
+export function TodayCard() {
+  // Keyed by date: a card saved yesterday ("Workout complete", "Rest day")
+  // must not show today.
+  const { data, loading, error } = useCachedQuery<CardState>(`home/today/${localDateKey()}`, loadTodayCard);
+  const state: CardState = data ?? (error && !loading ? { status: "hidden" } : { status: "loading" });
 
   if (state.status === "loading") {
     return <div className="h-56 animate-pulse rounded-2xl border border-border bg-card" />;

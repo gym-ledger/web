@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { WeightChart } from "@/components/weight/weight-chart";
 import { NewEntryDrawer } from "@/components/weight/new-entry-drawer";
 import { EditEntryDrawer } from "@/components/weight/edit-entry-drawer";
@@ -204,48 +205,45 @@ export function BodyTab() {
   const [customFrom, setCustomFrom] = useState(daysAgoISO(30));
   const [customTo, setCustomTo] = useState(todayISO());
 
-  const [entries, setEntries] = useState<WeightEntry[]>([]);
-  const [averages, setAverages] = useState<WeightMovingAverage[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [editingEntry, setEditingEntry] = useState<WeightEntry | null>(null);
-
-  const loadKey = useRef(0);
 
   useEffect(() => {
     setSavedViews(loadViews());
   }, []);
 
-  const loadData = useCallback(async (view: ActiveView) => {
-    const key = ++loadKey.current;
-    setLoading(true);
-    try {
-      let data;
-      if (view.type === "default") {
-        data = await fetchWeightForDate(todayISO());
-      } else if (view.type === "custom") {
-        data = await fetchWeightRange(view.from, view.to);
-      } else {
-        const to = view.view.to === "now" ? todayISO() : view.view.to;
-        data = await fetchWeightRange(view.view.from, to);
+  // Each view resolves to a date range; that range is the saved key, so
+  // switching back to a view already seen shows instantly.
+  const range =
+    activeView.type === "default"
+      ? { kind: "day" as const, date: todayISO() }
+      : activeView.type === "custom"
+        ? { kind: "range" as const, from: activeView.from, to: activeView.to }
+        : {
+            kind: "range" as const,
+            from: activeView.view.from,
+            to: activeView.view.to === "now" ? todayISO() : activeView.view.to,
+          };
+  const weightQuery = useCachedQuery<{ entries: WeightEntry[]; averages: WeightMovingAverage[] }>(
+    range.kind === "day" ? `body/day/${range.date}` : `body/range/${range.from}/${range.to}`,
+    async () => {
+      try {
+        const data =
+          range.kind === "day" ? await fetchWeightForDate(range.date) : await fetchWeightRange(range.from, range.to);
+        return {
+          entries: [...(data?.weight_entries ?? [])].sort((a, b) => a.day.localeCompare(b.day)),
+          averages: data?.weight_moving_averages ?? [],
+        };
+      } catch (err) {
+        toast.error("Failed to load weight data");
+        throw err;
       }
-      if (key !== loadKey.current) return;
-      const sorted = [...(data?.weight_entries ?? [])].sort((a, b) =>
-        a.day.localeCompare(b.day)
-      );
-      setEntries(sorted);
-      setAverages(data?.weight_moving_averages ?? []);
-    } catch {
-      if (key === loadKey.current) toast.error("Failed to load weight data");
-    } finally {
-      if (key === loadKey.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData(activeView);
-  }, [activeView, loadData]);
+    },
+  );
+  const entries = weightQuery.data?.entries ?? [];
+  const averages = weightQuery.data?.averages ?? [];
+  const loading = weightQuery.loading;
 
   function handleSaveView(view: WeightView) {
     const updated = [...savedViews, view];
@@ -549,12 +547,12 @@ export function BodyTab() {
       <NewEntryDrawer
         open={showNewEntry}
         onClose={() => setShowNewEntry(false)}
-        onSuccess={() => loadData(activeView)}
+        onSuccess={() => void weightQuery.refresh()}
       />
       <EditEntryDrawer
         entry={editingEntry}
         onClose={() => setEditingEntry(null)}
-        onSuccess={() => loadData(activeView)}
+        onSuccess={() => void weightQuery.refresh()}
       />
     </div>
   );

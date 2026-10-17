@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -19,6 +19,7 @@ import {
   type WorkoutPlanAssignment,
   type PublicWorkoutPlan,
 } from "@/lib/api/workout";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 function AssignmentCard({
   assignment,
@@ -169,33 +170,28 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 export default function WorkoutPage() {
-  const [myPlans, setMyPlans] = useState<WorkoutPlanAssignment[]>([]);
-  const [publicPlans, setPublicPlans] = useState<PublicWorkoutPlan[]>([]);
-  const [loadingMine, setLoadingMine] = useState(true);
-  const [loadingPublic, setLoadingPublic] = useState(true);
+  const mine = useCachedQuery<WorkoutPlanAssignment[]>("workout/my-plans", () =>
+    fetchMyWorkoutPlans().catch((err) => {
+      toast.error("Failed to load your plans");
+      throw err;
+    }),
+  );
+  const publicQuery = useCachedQuery<PublicWorkoutPlan[]>("workout/public-plans", () =>
+    fetchPublicWorkoutPlans().catch((err) => {
+      toast.error("Failed to load public plans");
+      throw err;
+    }),
+  );
+  const myPlans = mine.data ?? [];
+  const publicPlans = publicQuery.data ?? [];
+  const loadingMine = mine.loading;
+  const loadingPublic = publicQuery.loading;
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // After select/deactivate: the current list stays up while the new one loads.
   function refreshMine() {
-    setLoadingMine(true);
-    fetchMyWorkoutPlans()
-      .then(setMyPlans)
-      .catch(() => toast.error("Failed to load your plans"))
-      .finally(() => setLoadingMine(false));
+    void mine.refresh();
   }
-
-  useEffect(() => {
-    // Both loading flags already start `true`, so the initial fetch just
-    // needs to clear them — `refreshMine()` (used after select/deactivate)
-    // additionally sets loadingMine back to true for a manual re-fetch.
-    fetchMyWorkoutPlans()
-      .then(setMyPlans)
-      .catch(() => toast.error("Failed to load your plans"))
-      .finally(() => setLoadingMine(false));
-    fetchPublicWorkoutPlans()
-      .then(setPublicPlans)
-      .catch(() => toast.error("Failed to load public plans"))
-      .finally(() => setLoadingPublic(false));
-  }, []);
 
   async function handleSelect(workoutProgramId: string) {
     setBusyId(workoutProgramId);

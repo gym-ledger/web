@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, useTransition } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/workout";
 import type { ExerciseListItem } from "@/lib/api/exercises";
 import { ApiError } from "@/lib/api-client";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { Button } from "@/components/ui/button";
 import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
 import { DEFAULT_PLAN_TARGETS, PlanExerciseSheet } from "@/components/workout/plan-exercise-sheet";
@@ -235,10 +236,21 @@ export default function PlanDetailPage({
   const startInEditMode = use(searchParams).edit === "1";
   const router = useRouter();
 
-  const [plan, setPlan] = useState<PlanDetail | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [notFoundFlag, setNotFoundFlag] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const planQuery = useCachedQuery<PlanDetail>(`workout/plan/${versionId}`, () => fetchPlanDetail(versionId));
+  const plan = planQuery.data ?? null;
+  const setPlan = planQuery.mutate;
+  const isPending = planQuery.loading;
+  const loadError = planQuery.error;
+  const notFoundFlag = loadError instanceof ApiError && loadError.status === 404;
+  // Saved plan stays on screen when a refresh fails (e.g. offline).
+  const error =
+    !loadError || plan || notFoundFlag
+      ? null
+      : loadError instanceof ApiError && loadError.status === 403
+        ? "You don't have access to this workout plan."
+        : loadError instanceof ApiError
+          ? loadError.message
+          : "Failed to load workout plan";
 
   const [editing, setEditing] = useState(startInEditMode);
   // Session the exercise search is adding to.
@@ -248,30 +260,6 @@ export default function PlanDetailPage({
   const [reorderingSessionId, setReorderingSessionId] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    startTransition(async () => {
-      try {
-        const res = await fetchPlanDetail(versionId);
-        if (cancelled) return;
-        setPlan(res);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFoundFlag(true);
-        } else if (err instanceof ApiError && err.status === 403) {
-          setError("You don't have access to this workout plan.");
-        } else {
-          setError(err instanceof ApiError ? err.message : "Failed to load workout plan");
-        }
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [versionId]);
 
   async function refresh() {
     try {

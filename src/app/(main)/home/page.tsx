@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { Check, ChevronRight, Moon, User } from "lucide-react";
+import { Bell, Check, ChevronRight, Moon, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { TodayCard } from "@/components/home/today-card";
 import { OngoingWorkoutBanner } from "@/components/home/ongoing-workout-banner";
 import { HomeworkWidget } from "@/components/home/homework-widget";
 import { StatsRow } from "@/components/home/stats-row";
 import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
+import { WeeklyCheckinCard } from "@/components/home/weekly-checkin-card";
 import {
   fetchDashboardStats,
   fetchProgressOverview,
@@ -16,6 +16,8 @@ import {
   type DashboardStats,
   type PersonalRecord,
 } from "@/lib/api/workout";
+import { fetchUnreadNotificationCount } from "@/lib/api/notifications";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
 const WEEK_DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -41,22 +43,17 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 }
 
 export default function HomePage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [lastWeekVolume, setLastWeekVolume] = useState<number | null>(null);
-  const [prs, setPrs] = useState<PersonalRecord[] | null>(null);
-
-  useEffect(() => {
-    fetchDashboardStats()
-      .then(setStats)
-      .catch(() => {});
-    // Last item of the series is the current week; the one before it is last week.
-    fetchProgressOverview()
-      .then((o) => setLastWeekVolume(o.weekly_volume_series.at(-2)?.volume ?? 0))
-      .catch(() => {});
-    fetchRecentPRs(RECENT_PR_LIMIT)
-      .then(setPrs)
-      .catch(() => {});
-  }, []);
+  const stats = useCachedQuery<DashboardStats>("home/stats", fetchDashboardStats).data ?? null;
+  // Last item of the series is the current week; the one before it is last week.
+  const lastWeekVolume =
+    useCachedQuery<number>("home/last-week-volume", () =>
+      fetchProgressOverview().then((o) => o.weekly_volume_series.at(-2)?.volume ?? 0),
+    ).data ?? null;
+  const prs =
+    useCachedQuery<PersonalRecord[]>(`home/recent-prs/${RECENT_PR_LIMIT}`, () => fetchRecentPRs(RECENT_PR_LIMIT))
+      .data ?? null;
+  const unreadNotifications =
+    useCachedQuery<number>("home/unread-notifications", fetchUnreadNotificationCount).data ?? 0;
 
   const units = stats?.weight_units ?? "kg";
   const required = stats?.week.filter((d) => d.required) ?? [];
@@ -74,13 +71,25 @@ export default function HomePage() {
           <span className="text-[13px] font-medium text-muted-foreground">{formatToday()}</span>
           <h1 className="font-display text-[22px] leading-none font-bold tracking-[0.02em] uppercase">Today</h1>
         </div>
-        <Link
-          href="/profile"
-          aria-label="Profile"
-          className="flex size-11 items-center justify-center rounded-full border border-input bg-muted transition-colors hover:bg-secondary"
-        >
-          <User className="size-5" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/notifications"
+            aria-label={unreadNotifications > 0 ? `Notifications, ${unreadNotifications} unread` : "Notifications"}
+            className="relative flex size-11 items-center justify-center rounded-full border border-input bg-muted transition-colors hover:bg-secondary"
+          >
+            <Bell className="size-5" />
+            {unreadNotifications > 0 && (
+              <span className="absolute top-2 right-2 size-2.5 rounded-full bg-primary ring-2 ring-background" />
+            )}
+          </Link>
+          <Link
+            href="/profile"
+            aria-label="Profile"
+            className="flex size-11 items-center justify-center rounded-full border border-input bg-muted transition-colors hover:bg-secondary"
+          >
+            <User className="size-5" />
+          </Link>
+        </div>
       </motion.header>
 
       {stats ? (
@@ -105,6 +114,8 @@ export default function HomePage() {
       <TodayCard />
 
       <HomeworkWidget />
+
+      <WeeklyCheckinCard />
 
       {stats && (
         <section className="flex flex-col gap-2.5">

@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 import { writeCachedApiResponse } from "@/lib/offline/apiResponseCache";
+import { setCachedQueryData } from "@/lib/offline/useCachedQuery";
 
 // ---------------------------------------------------------------------------
 // Plans
@@ -323,12 +324,16 @@ export async function fetchSessionSets(sessionId: string): Promise<WorkoutSet[]>
 }
 
 const ONGOING_SESSION_PATH = "/user/workout/sessions/ongoing";
+/** useCachedQuery key of Home's "workout in progress" banner. */
+export const ONGOING_WORKOUT_QUERY_KEY = "home/ongoing-workout";
 
 export async function finishWorkoutSession(sessionId: string): Promise<WorkoutSession> {
   const finished = await apiClient.post<WorkoutSession>(`/user/workout/sessions/${sessionId}/finish`);
   // The offline copy of "workout in progress" would otherwise still point at
   // this workout, and reopening the app offline would resume a finished one.
   await writeCachedApiResponse(ONGOING_SESSION_PATH, null);
+  // Same for Home's saved banner (see OngoingWorkoutBanner).
+  await setCachedQueryData(ONGOING_WORKOUT_QUERY_KEY, null);
   return finished;
 }
 

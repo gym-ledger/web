@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -12,6 +12,7 @@ import { LineChart, BarChart } from "@/components/progress/mini-chart";
 import { BodyTab } from "@/components/weight/body-tab";
 import { ProgressRing } from "@/components/shared/progress-ring";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import {
   fetchProgressOverview,
   fetchRecentPRs,
@@ -85,13 +86,10 @@ function formatShortDate(iso: string) {
 
 /** Overview tab's single spotlight card: whichever exercise the user most recently set a PR in. */
 function LatestPrCard({ pr, units }: { pr: PersonalRecord; units: "kg" | "lbs" }) {
-  const [history, setHistory] = useState<ExerciseHistorySession[] | null>(null);
-
-  useEffect(() => {
-    fetchExerciseHistory(pr.exercise_id, 12)
-      .then(setHistory)
-      .catch(() => setHistory([]));
-  }, [pr.exercise_id]);
+  const historyQuery = useCachedQuery<ExerciseHistorySession[]>(`exercise-history/${pr.exercise_id}/12`, () =>
+    fetchExerciseHistory(pr.exercise_id, 12),
+  );
+  const history = historyQuery.data ?? (historyQuery.error ? [] : null);
 
   const chartData = (history ? [...history].reverse() : [])
     .map((session) => {
@@ -140,18 +138,11 @@ function LatestPrCard({ pr, units }: { pr: PersonalRecord; units: "kg" | "lbs" }
 }
 
 export function ProgressPageClient({ defaultTab }: Props) {
-  const [overview, setOverview] = useState<ProgressOverview | null>(null);
-  const [prs, setPrs] = useState<PersonalRecord[] | null>(null);
+  const overview = useCachedQuery<ProgressOverview>("progress/overview", fetchProgressOverview).data ?? null;
+  const prs =
+    useCachedQuery<PersonalRecord[]>(`progress/prs/${ALL_PRS_LIMIT}`, () => fetchRecentPRs(ALL_PRS_LIMIT)).data ??
+    null;
   const [prSearch, setPrSearch] = useState("");
-
-  useEffect(() => {
-    fetchProgressOverview()
-      .then(setOverview)
-      .catch(() => {});
-    fetchRecentPRs(ALL_PRS_LIMIT)
-      .then(setPrs)
-      .catch(() => {});
-  }, []);
 
   const filteredPrs = useMemo(() => {
     if (!prs) return null;

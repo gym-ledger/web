@@ -8,14 +8,17 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordDrawer } from "@/components/profile/change-password-drawer";
+import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
 import { ApiError } from "@/lib/api-client";
 import {
   fetchPreferences,
   fetchProfile,
+  fetchWeightGoal,
   updatePreferences,
   type HeightUnits,
   type UserPreferences,
   type UserProfile,
+  type WeightGoalState,
   type WeightUnits,
 } from "@/lib/api/profile";
 import { cn } from "@/lib/utils";
@@ -100,11 +103,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [goalState, setGoalState] = useState<WeightGoalState | null>(null);
+  const [goalOpen, setGoalOpen] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([fetchProfile(), fetchPreferences()])
-      .then(([p, prefs]) => {
+    Promise.allSettled([fetchProfile(), fetchPreferences(), fetchWeightGoal()])
+      .then(([p, prefs, goal]) => {
         if (p.status === "fulfilled") setProfile(p.value);
+        if (goal.status === "fulfilled") setGoalState(goal.value);
         if (prefs.status === "fulfilled" && prefs.value) {
           setSaved(prefs.value);
           setDraft(prefs.value);
@@ -134,6 +140,7 @@ export default function SettingsPage() {
       setSaved(next);
       setDraft(next);
       setHeightInput(String(next.height));
+      setGoalState((g) => (g ? { ...g, has_preferences: true, weight_units: next.weight_units } : g));
       toast.success("Preferences saved");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to save preferences");
@@ -228,6 +235,24 @@ export default function SettingsPage() {
             </Button>
           </section>
 
+          {goalState && (
+            <section className="flex flex-col">
+              <h2 className="label-caps border-b border-input pb-2">Goal</h2>
+              <Row label="Body-weight goal" sub={describeWeightGoal(goalState)}>
+                <button
+                  type="button"
+                  onClick={() => setGoalOpen(true)}
+                  className="h-9 rounded-full border border-input bg-card px-3 text-[13px] font-semibold"
+                >
+                  {goalState.goal ? "Edit" : "Set goal"}
+                </button>
+              </Row>
+              <p className="pt-2 text-[13px] text-muted-foreground">
+                Your weekly check-in on Home judges your weight trend against this.
+              </p>
+            </section>
+          )}
+
           {profile && (
             <section className="flex flex-col">
               <h2 className="label-caps border-b border-input pb-2">Security</h2>
@@ -246,6 +271,15 @@ export default function SettingsPage() {
             </section>
           )}
         </motion.div>
+      )}
+
+      {goalState && (
+        <WeightGoalDrawer
+          open={goalOpen}
+          state={goalState}
+          onClose={() => setGoalOpen(false)}
+          onSaved={(goal) => setGoalState((g) => (g ? { ...g, goal } : g))}
+        />
       )}
 
       {profile && (

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { motion } from "framer-motion";
 import { Sparkline } from "@/components/progress/mini-chart";
 import { fetchWeightForDate, WeightEntry } from "@/lib/api/weight";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 function todayISO() {
   return new Date().toISOString().split("T")[0];
@@ -48,15 +48,11 @@ function DeltaBadge({ delta }: { delta: number | null }) {
 
 export function WeightHomeWidget() {
   const router = useRouter();
-  const [entries, setEntries] = useState<WeightEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchWeightForDate(todayISO())
-      .then((d) => setEntries(d.weight_entries))
-      .catch(() => { })
-      .finally(() => setLoading(false));
-  }, []);
+  const today = todayISO();
+  const { data, loading } = useCachedQuery<WeightEntry[]>(`home/weight/${today}`, () =>
+    fetchWeightForDate(today).then((d) => d.weight_entries),
+  );
+  const entries = data ?? [];
 
   const sorted = [...entries].sort((a, b) => a.day.localeCompare(b.day));
   const latest = sorted[sorted.length - 1] ?? null;

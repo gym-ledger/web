@@ -6,8 +6,15 @@ import { motion } from "framer-motion";
 import { Search, ChevronRight, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
-import { fetchExercises, fetchMuscles, type ExerciseListItem, type Muscle } from "@/lib/api/exercises";
+import {
+  fetchExercises,
+  fetchMuscles,
+  type ExerciseListItem,
+  type ExercisesPage,
+  type Muscle,
+} from "@/lib/api/exercises";
 import { ApiError } from "@/lib/api-client";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
 const PAGE_LIMIT = 30;
@@ -27,26 +34,47 @@ export default function ExercisesPage() {
   const [query, setQuery] = useState("");
   const [activeBodyRegion, setActiveBodyRegion] = useState<string | null>(null);
 
-  const [muscles, setMuscles] = useState<Muscle[]>([]);
-  const [exercises, setExercises] = useState<ExerciseListItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isPending, startTransition] = useTransition();
+  const musclesQuery = useCachedQuery<Muscle[]>("exercises/muscles", fetchMuscles);
+  const muscles = useMemo(() => musclesQuery.data ?? [], [musclesQuery.data]);
+
+  // Identifies the current list; "Load more" pages belong to one list only.
+  const listKey = `${activeBodyRegion ?? ""}|${query}`;
+
+  // Browsing (no search text) is saved per body region and shows instantly.
+  // Typed searches are not saved, so they don't pile up in storage.
+  const browse = useCachedQuery<ExercisesPage>(
+    query ? null : `exercises/list/${activeBodyRegion ?? "all"}/${PAGE_LIMIT}`,
+    () => fetchExercises({ bodyRegion: activeBodyRegion ?? undefined, page: 1, limit: PAGE_LIMIT }),
+  );
+  const [search, setSearch] = useState<{ key: string; result: ExercisesPage } | null>(null);
+  const [searchError, setSearchError] = useState<{ key: string; message: string } | null>(null);
+  const [isSearching, startTransition] = useTransition();
+  const [more, setMore] = useState<{ key: string; items: ExerciseListItem[]; page: number } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // While a new search loads, the previous results stay up.
+  const firstPage = query ? search?.result : browse.data;
+  const extra = more?.key === listKey ? more : null;
+  const exercises = [...(firstPage?.data ?? []), ...(extra?.items ?? [])];
+  const page = extra?.page ?? firstPage?.meta.page ?? 1;
+  const totalPages = firstPage?.meta.totalPages ?? 1;
+  const totalCount = firstPage?.meta.totalCount ?? 0;
+  const isPending = query ? isSearching : browse.loading;
+  const error = query
+    ? searchError?.key === listKey
+      ? searchError.message
+      : null
+    : browse.error && !browse.data
+      ? browse.error instanceof ApiError
+        ? browse.error.message
+        : "Failed to load exercises"
+      : null;
 
   // Debounce the search box so we're not firing a request per keystroke.
   useEffect(() => {
     const id = setTimeout(() => setQuery(rawQuery.trim()), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(id);
   }, [rawQuery]);
-
-  useEffect(() => {
-    fetchMuscles()
-      .then(setMuscles)
-      .catch(() => setMuscles([]));
-  }, []);
 
   // Body regions actually present in the muscle catalog, in the server's
   // display order, deduped — these drive the filter chips instead of a
@@ -64,32 +92,32 @@ export default function ExercisesPage() {
   }, [muscles]);
 
   useEffect(() => {
+    if (!query) return;
     let cancelled = false;
+    const key = listKey;
     startTransition(async () => {
       try {
         const res = await fetchExercises({
-          search: query || undefined,
+          search: query,
           bodyRegion: activeBodyRegion ?? undefined,
           page: 1,
           limit: PAGE_LIMIT,
         });
         if (cancelled) return;
-        setExercises(res.data);
-        setPage(res.meta.page);
-        setTotalPages(res.meta.totalPages);
-        setTotalCount(res.meta.totalCount);
-        setError(null);
+        setSearch({ key, result: res });
+        setSearchError(null);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Failed to load exercises");
+        setSearchError({ key, message: err instanceof ApiError ? err.message : "Failed to load exercises" });
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [query, activeBodyRegion]);
+  }, [query, activeBodyRegion, listKey]);
 
   function loadMore() {
+    const key = listKey;
     setLoadingMore(true);
     fetchExercises({
       search: query || undefined,
@@ -98,9 +126,11 @@ export default function ExercisesPage() {
       limit: PAGE_LIMIT,
     })
       .then((res) => {
-        setExercises((prev) => [...prev, ...res.data]);
-        setPage(res.meta.page);
-        setTotalPages(res.meta.totalPages);
+        setMore((prev) => ({
+          key,
+          items: [...(prev?.key === key ? prev.items : []), ...res.data],
+          page: res.meta.page,
+        }));
       })
       .catch(() => {})
       .finally(() => setLoadingMore(false));

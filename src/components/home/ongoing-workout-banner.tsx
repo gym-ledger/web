@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { fetchOngoingWorkoutSession, type OngoingWorkoutSession } from "@/lib/api/workout";
+import { fetchOngoingWorkoutSession, ONGOING_WORKOUT_QUERY_KEY, type OngoingWorkoutSession } from "@/lib/api/workout";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 function formatElapsed(startedAtIso: string) {
   const totalMinutes = Math.max(
@@ -20,13 +20,8 @@ function formatElapsed(startedAtIso: string) {
 
 export function OngoingWorkoutBanner() {
   const router = useRouter();
-  const [session, setSession] = useState<OngoingWorkoutSession | null>(null);
-
-  useEffect(() => {
-    fetchOngoingWorkoutSession()
-      .then(setSession)
-      .catch(() => {});
-  }, []);
+  const session =
+    useCachedQuery<OngoingWorkoutSession | null>(ONGOING_WORKOUT_QUERY_KEY, fetchOngoingWorkoutSession).data ?? null;
 
   if (!session) return null;
 

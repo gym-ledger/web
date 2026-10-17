@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { BodyChart, ViewSide, INTENSITY_COLORS, type BodyState, type MuscleId } from "body-muscles";
 import { fetchMuscleSignals, type MuscleSignal } from "@/lib/api/muscleSignals";
 import { buildBodyState, findPercentForLibraryId, type SignalMode } from "@/lib/muscle-body-map-adapter";
 import "@/lib/muscle-body-map-labels";
 import { ApiError } from "@/lib/api-client";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
 function BodyChartView({
@@ -55,29 +56,18 @@ const MODES: { value: SignalMode; label: string }[] = [
 ];
 
 export function MuscleBodyMap() {
-  const [signals, setSignals] = useState<MuscleSignal[]>([]);
+  const signalsQuery = useCachedQuery<MuscleSignal[]>("progress/muscle-signals", fetchMuscleSignals);
+  const signals = useMemo(() => signalsQuery.data ?? [], [signalsQuery.data]);
+  const isPending = signalsQuery.loading;
+  // Saved signals stay on screen when a refresh fails (e.g. offline).
+  const error =
+    signalsQuery.error && !signalsQuery.data
+      ? signalsQuery.error instanceof ApiError
+        ? signalsQuery.error.message
+        : "Failed to load muscle signals"
+      : null;
   const [mode, setMode] = useState<SignalMode>("training");
   const [selected, setSelected] = useState<{ name: string; percent: number } | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    startTransition(async () => {
-      try {
-        const res = await fetchMuscleSignals();
-        if (cancelled) return;
-        setSignals(res);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof ApiError ? err.message : "Failed to load muscle signals");
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const bodyState = useMemo(() => buildBodyState(signals, mode), [signals, mode]);
   const hasAnySignal = Object.values(bodyState).some((s) => (s?.intensity ?? 0) > 0);

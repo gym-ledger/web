@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, useTransition } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { motion } from "framer-motion";
@@ -10,6 +10,7 @@ import { fetchExerciseById, type ExerciseDetail } from "@/lib/api/exercises";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
 import { ApiError } from "@/lib/api-client";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
 const HISTORY_LIMIT = 12;
@@ -29,37 +30,24 @@ export default function ExerciseDetailPage({
 }) {
   const { id } = use(params);
 
-  const [exercise, setExercise] = useState<ExerciseDetail | null>(null);
-  const [history, setHistory] = useState<ExerciseHistorySession[]>([]);
-  const [isPending, startTransition] = useTransition();
-  const [notFoundFlag, setNotFoundFlag] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    startTransition(async () => {
-      try {
-        const [exerciseRes, historyRes] = await Promise.all([
-          fetchExerciseById(id),
-          fetchExerciseHistory(id, HISTORY_LIMIT),
-        ]);
-        if (cancelled) return;
-        setExercise(exerciseRes);
-        setHistory(historyRes);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFoundFlag(true);
-        } else {
-          setError(err instanceof ApiError ? err.message : "Failed to load exercise");
-        }
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const query = useCachedQuery<{ exercise: ExerciseDetail; history: ExerciseHistorySession[] }>(
+    `exercises/detail/${id}/${HISTORY_LIMIT}`,
+    async () => {
+      const [exercise, history] = await Promise.all([fetchExerciseById(id), fetchExerciseHistory(id, HISTORY_LIMIT)]);
+      return { exercise, history };
+    },
+  );
+  const exercise = query.data?.exercise ?? null;
+  const history = query.data?.history ?? [];
+  const isPending = query.loading;
+  const notFoundFlag = query.error instanceof ApiError && query.error.status === 404;
+  // Saved data stays on screen when a refresh fails (e.g. offline).
+  const error =
+    query.error && !query.data && !notFoundFlag
+      ? query.error instanceof ApiError
+        ? query.error.message
+        : "Failed to load exercise"
+      : null;
 
   if (notFoundFlag) notFound();
 

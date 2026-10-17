@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ChevronRight, Loader2, LogOut, Pencil, Settings, User } from "lucide-react";
@@ -11,6 +11,7 @@ import { EditNameDrawer } from "@/components/profile/edit-name-drawer";
 import { InstallAppCard } from "@/components/profile/install-app-card";
 import { performLogout } from "@/auth/tokenManager";
 import { fetchPreferences, fetchProfile, type UserProfile } from "@/lib/api/profile";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 function fullName(p: UserProfile) {
   return [p.first_name, p.last_name].filter(Boolean).join(" ");
@@ -37,19 +38,14 @@ function memberSince(createdAt: string) {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [prefsMissing, setPrefsMissing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const profileQuery = useCachedQuery<UserProfile>("profile", fetchProfile);
+  const profile = profileQuery.data ?? null;
+  const loading = profileQuery.loading;
+  // Only "has the user set preferences" matters here, so only that is saved.
+  const prefsMissing =
+    useCachedQuery<boolean>("profile/prefs-missing", () => fetchPreferences().then((prefs) => prefs === null)).data ??
+    false;
   const [editing, setEditing] = useState(false);
-
-  useEffect(() => {
-    Promise.allSettled([fetchProfile(), fetchPreferences()])
-      .then(([p, prefs]) => {
-        if (p.status === "fulfilled") setProfile(p.value);
-        if (prefs.status === "fulfilled") setPrefsMissing(prefs.value === null);
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   function handleLogout() {
     performLogout();
@@ -155,7 +151,7 @@ export default function ProfilePage() {
       )}
 
       {profile && (
-        <EditNameDrawer open={editing} profile={profile} onClose={() => setEditing(false)} onSaved={setProfile} />
+        <EditNameDrawer open={editing} profile={profile} onClose={() => setEditing(false)} onSaved={profileQuery.mutate} />
       )}
     </div>
   );

@@ -1,32 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import { fetchActiveAlarms, discardAlarm, type ActiveAlarm } from "@/lib/api/workout";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function HomeworkWidget() {
-  const [alarms, setAlarms] = useState<ActiveAlarm[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, mutate } = useCachedQuery<ActiveAlarm[]>("home/alarms", fetchActiveAlarms);
+  const alarms = data ?? [];
   const [dismissingId, setDismissingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchActiveAlarms()
-      .then(setAlarms)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   async function handleDismiss(id: string) {
     setDismissingId(id);
     try {
       await discardAlarm(id);
-      setAlarms((prev) => prev.filter((a) => a.id !== id));
+      mutate((prev) => (prev ?? []).filter((a) => a.id !== id));
     } catch {
       toast.error("Failed to dismiss");
     } finally {
@@ -34,7 +28,7 @@ export function HomeworkWidget() {
     }
   }
 
-  if (loading || alarms.length === 0) return null;
+  if (alarms.length === 0) return null;
 
   return (
     <section className="flex flex-col gap-2.5">
