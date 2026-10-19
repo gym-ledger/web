@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { Segmented } from "@/components/shared/segmented";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordDrawer } from "@/components/profile/change-password-drawer";
 import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
@@ -21,7 +22,6 @@ import {
   type WeightGoalState,
   type WeightUnits,
 } from "@/lib/api/profile";
-import { cn } from "@/lib/utils";
 
 function deviceTimezone() {
   try {
@@ -43,38 +43,6 @@ function canonicalTimezone(tz: string) {
 // The API stores current IANA names, while browsers may report a legacy alias of the same zone.
 function sameTimezone(a: string, b: string) {
   return a === b || canonicalTimezone(a) === canonicalTimezone(b);
-}
-
-function Segmented<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex rounded-full border border-input bg-background p-1">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          onClick={() => onChange(opt.value)}
-          className={cn(
-            "min-h-9 min-w-12 rounded-full px-3 text-[13px] font-bold transition-colors",
-            value === opt.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function Row({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {

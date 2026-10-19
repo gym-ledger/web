@@ -9,18 +9,33 @@ export interface UserProfile {
   email: string | null;
   /** False for users who have only ever signed in with a one-time code — they can set a password without the current one. */
   has_password: boolean;
+  /** Set once the user finishes or skips onboarding; null sends them to it. */
+  onboarded_at: string | null;
   created_at: string;
 }
 
 export type WeightUnits = "kg" | "lbs";
 export type HeightUnits = "cm" | "ft";
 
+export type TrainingGoal = "build_muscle" | "get_stronger" | "lose_fat" | "general_fitness";
+export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
+export type Equipment = "full_gym" | "home_dumbbells" | "bodyweight";
+
 export interface UserPreferences {
   timezone: string;
   weight_units: WeightUnits;
   height_units: HeightUnits;
   height: number;
+  /** Onboarding answers — null for users who skipped it or predate it. */
+  training_goal?: TrainingGoal | null;
+  experience_level?: ExperienceLevel | null;
+  training_days_per_week?: number | null;
+  equipment?: Equipment | null;
 }
+
+export type OnboardingAnswers = Required<{
+  [K in keyof UserPreferences]: NonNullable<UserPreferences[K]>;
+}>;
 
 export async function fetchProfile(): Promise<UserProfile> {
   return apiClient.get<UserProfile>("/user/profile");
@@ -45,6 +60,18 @@ export async function fetchPreferences(): Promise<UserPreferences | null> {
 export async function updatePreferences(data: Partial<UserPreferences>): Promise<UserPreferences> {
   const res = await apiClient.put<{ preferences: UserPreferences }>("/user/profile/preferences", data);
   return res.preferences;
+}
+
+/** Saves every onboarding answer (creating the preferences row if needed) and marks the user onboarded. */
+export async function completeOnboarding(
+  data: OnboardingAnswers,
+): Promise<{ user: UserProfile; preferences: UserPreferences }> {
+  return apiClient.put<{ user: UserProfile; preferences: UserPreferences }>("/user/profile/onboarding", data);
+}
+
+/** Marks the user onboarded without saving any answers. */
+export async function skipOnboarding(): Promise<UserProfile> {
+  return apiClient.post<UserProfile>("/user/profile/onboarding/skip");
 }
 
 // ---------------------------------------------------------------------------

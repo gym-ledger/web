@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/auth/authStore";
+import { postLoginPath } from "@/auth/postLoginPath";
 import { loginWithPassword, sendLoginOtp, verifyLoginOtp, type LoginResponse } from "@/lib/api/auth";
 import {
   IdentityField,
@@ -69,7 +70,7 @@ export default function LoginPage() {
       },
       data.user,
     );
-    router.push("/home");
+    router.push(postLoginPath(data.user));
   }
 
   async function handleSendOtp(e?: React.FormEvent) {

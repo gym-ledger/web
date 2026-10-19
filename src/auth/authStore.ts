@@ -23,6 +23,7 @@ interface AuthState {
   setStatus: (status: AuthStatus) => void;
   setTokens: (tokens: AuthTokens, user?: AuthUser) => void;
   setAccessToken: (accessToken: string, expiresAt: number) => void;
+  setUser: (user: AuthUser) => void;
   clearAuth: () => void;
 }
 
@@ -53,6 +54,8 @@ export const useAuthStore = create<AuthState>()(
       setAccessToken: (accessToken, expiresAt) => {
         set({ accessToken, accessTokenExpiresAt: expiresAt, hasSession: true, status: "authenticated" });
       },
+
+      setUser: (user) => set({ user }),
 
       clearAuth: () => {
         // Offline copies of API data belong to this user.
