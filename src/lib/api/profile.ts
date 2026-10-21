@@ -97,7 +97,37 @@ export interface WeightGoalPreset {
   description: string;
 }
 
+export type WeightGoalStatus = "active" | "completed" | "finished_early" | "cancelled";
+export type WeightGoalEndStatus = Exclude<WeightGoalStatus, "active">;
+
+/** Same verdicts as the weekly check-in. */
+export type WeightPaceStatus =
+  | "no_goal"
+  | "not_enough_data"
+  | "goal_reached"
+  | "on_track"
+  | "behind"
+  | "too_fast"
+  | "wrong_direction"
+  | "drifting_up"
+  | "drifting_down";
+
+export interface WeightGoalTrajectory {
+  /** Where the straight-line plan puts the user today. */
+  planned_weight_today: number | null;
+  /** Measured trend per week, signed; null until 4 weigh-ins over 10+ days. */
+  actual_weekly_change: number | null;
+  actual_weekly_pct: number | null;
+  pace_status: WeightPaceStatus;
+  /** The date the measured trend reaches the target; null if it isn't heading there. */
+  projected_date: string | null;
+  /** 0–1 of the way from the start weight to the target. */
+  progress: number | null;
+}
+
 export interface WeightGoal {
+  id: string;
+  status: WeightGoalStatus;
   goal: WeightGoalType;
   preset: WeightGoalPace | null;
   /** Unsigned, only for a custom pace. */
@@ -106,40 +136,82 @@ export interface WeightGoal {
   /** Signed pace chosen, % of body weight per week at the current weight. */
   pace_weekly_pct: number | null;
   target_weight: number | null;
+  /** "Goal starts from". */
+  start_date: string;
+  /** 7-day average as of the start date. */
+  start_weight: number | null;
   goal_date: string | null;
   goal_date_source: "suggested" | "user" | null;
-  start_weight: number | null;
-  set_on: string | null;
   weeks_left: number | null;
   /** Signed % of body weight per week still needed to hit the target by the date. */
   required_weekly_pct: number | null;
   /** The date needs a pace faster than any preset allows. */
   pace_warning: boolean;
+  trajectory: WeightGoalTrajectory;
+  target_reached: boolean;
+  date_passed: boolean;
+  /** "Mark complete" is offered once the date passes or the target is reached (maintain: any time). */
+  can_complete: boolean;
+}
+
+export interface WeightGoalEndReason {
+  key: string;
+  label: string;
+  description: string;
 }
 
 export interface WeightGoalState {
   goal: WeightGoal | null;
-  /** The goal lives on the preferences row — it can't be saved until units/height are. */
+  /** Goals need the preferences row (units, timezone) — they can't be saved until it exists. */
   has_preferences: boolean;
   weight_units: WeightUnits;
   /** Mean of the weigh-ins in the 7 days up to the latest one; null with no weigh-ins. */
   current_weight: { weight: number; as_of: string } | null;
+  /** Today in the user's timezone. */
+  today: string;
   presets: WeightGoalPreset[];
   /** Fastest custom pace the API accepts, % of body weight per week. */
   max_custom_weekly_pct: number;
+  end_reasons: Record<"finished_early" | "cancelled", WeightGoalEndReason[]>;
 }
 
 export interface GoalDateSuggestion {
   preset: WeightGoalPace;
+  start_date: string;
   goal_date: string;
+  /** A backdated start can put the suggested date in the past. */
+  goal_date_passed: boolean;
   weeks: number;
-  current_weight: number;
+  start_weight: number;
   target_weight: number;
   /** Signed change per week at the chosen pace, in the user's units. */
   weekly_change: number;
   /** Same, as % of body weight. */
   weekly_pct: number;
   weight_units: WeightUnits;
+}
+
+/** An ended goal. */
+export interface WeightGoalHistoryEntry {
+  id: string;
+  status: WeightGoalEndStatus;
+  goal: WeightGoalType;
+  preset: WeightGoalPace | null;
+  custom_pace: number | null;
+  custom_pace_unit: CustomPaceUnit | null;
+  target_weight: number | null;
+  start_date: string;
+  start_weight: number | null;
+  goal_date: string | null;
+  end_date: string;
+  end_weight: number | null;
+  end_reason: string | null;
+  end_note: string | null;
+  /** Signed, end weight minus start weight. */
+  change: number | null;
+  /** 0–1 of the way from the start weight to the target. */
+  progress: number | null;
+  weeks: number | null;
 }
 
 export async function fetchWeightGoal(): Promise<WeightGoalState> {
@@ -150,8 +222,12 @@ export type GoalPaceInput =
   | { preset: WeightGoalPresetKey }
   | { preset: "custom"; custom_pace: number; custom_pace_unit: CustomPaceUnit };
 
-export async function suggestGoalDate(pace: GoalPaceInput, targetWeight: number): Promise<GoalDateSuggestion> {
-  const params = new URLSearchParams({ preset: pace.preset, target_weight: String(targetWeight) });
+export async function suggestGoalDate(
+  pace: GoalPaceInput,
+  targetWeight: number,
+  startDate: string,
+): Promise<GoalDateSuggestion> {
+  const params = new URLSearchParams({ preset: pace.preset, target_weight: String(targetWeight), start_date: startDate });
   if (pace.preset === "custom") {
     params.set("custom_pace", String(pace.custom_pace));
     params.set("custom_pace_unit", pace.custom_pace_unit);
@@ -159,16 +235,32 @@ export async function suggestGoalDate(pace: GoalPaceInput, targetWeight: number)
   return apiClient.get<GoalDateSuggestion>(`/user/profile/goal/suggestion?${params}`);
 }
 
-/** Without `goal_date` the API uses the pace's suggested date. "maintain" takes no pace/target/date. */
+/**
+ * Edits the active goal, or starts one when there is none. Without
+ * `goal_date` the API uses the pace's suggested date. "maintain" takes no
+ * pace/target/date.
+ */
 export async function saveWeightGoal(
-  data:
+  data: { start_date: string } & (
     | { goal: "maintain" }
-    | ({ goal: "lose" | "gain"; target_weight: number; goal_date?: string | null } & GoalPaceInput),
+    | ({ goal: "lose" | "gain"; target_weight: number; goal_date?: string | null } & GoalPaceInput)
+  ),
 ): Promise<WeightGoal> {
   const res = await apiClient.put<{ goal: WeightGoal }>("/user/profile/goal", data);
   return res.goal;
 }
 
-export async function clearWeightGoal(): Promise<void> {
-  await apiClient.delete<null>("/user/profile/goal");
+/** "completed" needs `can_complete`; the others take an optional reason and note. */
+export async function endWeightGoal(data: {
+  status: WeightGoalEndStatus;
+  reason?: string | null;
+  note?: string | null;
+}): Promise<WeightGoalHistoryEntry> {
+  const res = await apiClient.post<{ goal: WeightGoalHistoryEntry }>("/user/profile/goal/end", data);
+  return res.goal;
+}
+
+export async function fetchWeightGoalHistory(): Promise<WeightGoalHistoryEntry[]> {
+  const res = await apiClient.get<{ goals: WeightGoalHistoryEntry[] }>("/user/profile/goal/history");
+  return res.goals;
 }

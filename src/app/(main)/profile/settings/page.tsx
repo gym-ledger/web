@@ -10,6 +10,7 @@ import { Segmented } from "@/components/shared/segmented";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordDrawer } from "@/components/profile/change-password-drawer";
 import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
+import { EndWeightGoalDrawer } from "@/components/profile/end-weight-goal-drawer";
 import { ApiError } from "@/lib/api-client";
 import {
   fetchPreferences,
@@ -73,6 +74,7 @@ export default function SettingsPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [goalState, setGoalState] = useState<WeightGoalState | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [endGoalOpen, setEndGoalOpen] = useState(false);
 
   useEffect(() => {
     Promise.allSettled([fetchProfile(), fetchPreferences(), fetchWeightGoal()])
@@ -216,7 +218,12 @@ export default function SettingsPage() {
                 </button>
               </Row>
               <p className="pt-2 text-[13px] text-muted-foreground">
-                Your weekly check-in on Home judges your weight trend against this.
+                Your weekly check-in on Home judges your weight trend against this. See your progress and past
+                goals in{" "}
+                <Link href="/progress?tab=body" className="font-semibold text-primary">
+                  Progress
+                </Link>
+                .
               </p>
             </section>
           )}
@@ -247,6 +254,19 @@ export default function SettingsPage() {
           state={goalState}
           onClose={() => setGoalOpen(false)}
           onSaved={(goal) => setGoalState((g) => (g ? { ...g, goal } : g))}
+          onEndRequest={() => {
+            setGoalOpen(false);
+            setEndGoalOpen(true);
+          }}
+        />
+      )}
+
+      {goalState && (
+        <EndWeightGoalDrawer
+          open={endGoalOpen}
+          state={goalState}
+          onClose={() => setEndGoalOpen(false)}
+          onEnded={() => setGoalState((g) => (g ? { ...g, goal: null } : g))}
         />
       )}
 

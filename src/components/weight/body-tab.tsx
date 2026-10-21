@@ -17,6 +17,7 @@ import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { WeightChart } from "@/components/weight/weight-chart";
 import { NewEntryDrawer } from "@/components/weight/new-entry-drawer";
 import { EditEntryDrawer } from "@/components/weight/edit-entry-drawer";
+import { WeightGoalCard } from "@/components/weight/weight-goal-card";
 import {
   WeightEntry,
   WeightMovingAverage,
@@ -208,6 +209,13 @@ export function BodyTab() {
 
   const [showNewEntry, setShowNewEntry] = useState(false);
   const [editingEntry, setEditingEntry] = useState<WeightEntry | null>(null);
+  // Bumped after a weigh-in changes, so the goal card reloads too.
+  const [entriesVersion, setEntriesVersion] = useState(0);
+
+  function handleEntriesChanged() {
+    void weightQuery.refresh();
+    setEntriesVersion((v) => v + 1);
+  }
 
   useEffect(() => {
     setSavedViews(loadViews());
@@ -301,6 +309,8 @@ export function BodyTab() {
           <Plus className="size-3.5" /> Log entry
         </button>
       </div>
+
+      <WeightGoalCard refreshKey={entriesVersion} />
 
       {/* View selector */}
       <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-4 px-4 scrollbar-none">
@@ -547,12 +557,12 @@ export function BodyTab() {
       <NewEntryDrawer
         open={showNewEntry}
         onClose={() => setShowNewEntry(false)}
-        onSuccess={() => void weightQuery.refresh()}
+        onSuccess={handleEntriesChanged}
       />
       <EditEntryDrawer
         entry={editingEntry}
         onClose={() => setEditingEntry(null)}
-        onSuccess={() => void weightQuery.refresh()}
+        onSuccess={handleEntriesChanged}
       />
     </div>
   );

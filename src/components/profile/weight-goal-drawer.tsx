@@ -7,7 +7,6 @@ import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api-client";
 import {
-  clearWeightGoal,
   saveWeightGoal,
   suggestGoalDate,
   type CustomPaceUnit,
@@ -24,9 +23,10 @@ import { cn } from "@/lib/utils";
 const UNSAFE_LOSS_PCT = 1.5;
 const UNSAFE_GAIN_PCT = 1.0;
 
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function addDaysISO(iso: string, days: number) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function formatDate(iso: string) {
@@ -64,27 +64,32 @@ export function describeWeightGoal(state: WeightGoalState): string {
 }
 
 /**
- * Sets the body-weight goal: direction, a pace (preset, or the user's own in
- * % or weight per week), a target, and a date — suggested by the API from
- * the pace, or picked by the user.
+ * Sets or edits the body-weight goal: direction, the date it starts from, a
+ * pace (preset, or the user's own in % or weight per week), a target, and a
+ * date — suggested by the API from the pace, or picked by the user.
+ * `onEndRequest` offers ending the active goal (EndWeightGoalDrawer).
  */
 export function WeightGoalDrawer({
   open,
   state,
   onClose,
   onSaved,
+  onEndRequest,
 }: {
   open: boolean;
   state: WeightGoalState;
   onClose: () => void;
-  onSaved: (goal: WeightGoal | null) => void;
+  onSaved: (goal: WeightGoal) => void;
+  onEndRequest?: () => void;
 }) {
+  const today = state.today;
   const [goal, setGoal] = useState<WeightGoalType>("lose");
   const [pace, setPace] = useState<WeightGoalPace>("mild_cut");
   const [customInput, setCustomInput] = useState("");
   const [customUnit, setCustomUnit] = useState<CustomPaceUnit>("pct");
   const [targetInput, setTargetInput] = useState("");
   const [date, setDate] = useState("");
+  const [startDate, setStartDate] = useState(today);
   // Once the user picks their own date, a new suggestion no longer overwrites it.
   const [dateTouched, setDateTouched] = useState(false);
   const [suggestion, setSuggestion] = useState<GoalDateSuggestion | null>(null);
@@ -104,6 +109,8 @@ export function WeightGoalDrawer({
       setCustomUnit(g?.custom_pace_unit ?? "pct");
       setTargetInput(g?.target_weight != null ? String(g.target_weight) : "");
       setDate(g?.goal_date ?? "");
+      // A new goal starts today; an ongoing one keeps the date it started from.
+      setStartDate(g?.start_date ?? today);
       setDateTouched(g?.goal_date_source === "user");
       setSuggestion(null);
       setSuggestError(null);
@@ -153,15 +160,15 @@ export function WeightGoalDrawer({
 
   // Ask the API for the date this pace reaches the target, after typing settles.
   useEffect(() => {
-    if (!open || goal === "maintain" || !paceKey || customTooFast || !targetValid || current == null) return;
+    if (!open || goal === "maintain" || !paceKey || customTooFast || !targetValid || current == null || !startDate) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      suggestGoalDate(JSON.parse(paceKey) as GoalPaceInput, target)
+      suggestGoalDate(JSON.parse(paceKey) as GoalPaceInput, target, startDate)
         .then((s) => {
           if (cancelled) return;
           setSuggestion(s);
           setSuggestError(null);
-          if (!dateTouched) setDate(s.goal_date);
+          if (!dateTouched && !s.goal_date_passed) setDate(s.goal_date);
         })
         .catch((err) => {
           if (cancelled) return;
@@ -173,19 +180,22 @@ export function WeightGoalDrawer({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [open, goal, paceKey, customTooFast, target, targetValid, current, dateTouched]);
+  }, [open, goal, paceKey, customTooFast, target, targetValid, current, dateTouched, startDate]);
 
   // Pace the chosen date actually needs, so a hand-picked date can be sanity-checked.
-  const weeks = date ? (Date.parse(`${date}T00:00:00`) - Date.parse(`${todayISO()}T00:00:00`)) / (7 * 86_400_000) : 0;
+  const weeks = date ? (Date.parse(`${date}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / (7 * 86_400_000) : 0;
   const impliedPct = current != null && targetValid && weeks > 0 ? ((target - current) / current) * 100 / weeks : null;
   const unsafe =
     impliedPct != null && ((impliedPct < 0 && -impliedPct > UNSAFE_LOSS_PCT) || (impliedPct > 0 && impliedPct > UNSAFE_GAIN_PCT));
   const usingSuggestion = suggestion != null && date === suggestion.goal_date;
 
+  const minStart = addDaysISO(today, -365);
+  const startValid = !!startDate && startDate <= today && startDate >= minStart;
   const canSave =
     state.has_preferences &&
+    startValid &&
     (goal === "maintain" ||
-      (current != null && paceInput != null && !customTooFast && targetValid && !suggestError && date > todayISO()));
+      (current != null && paceInput != null && !customTooFast && targetValid && !suggestError && date > today));
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -195,27 +205,13 @@ export function WeightGoalDrawer({
     try {
       const saved =
         goal === "maintain"
-          ? await saveWeightGoal({ goal })
-          : await saveWeightGoal({ goal, target_weight: target, goal_date: date, ...paceInput! });
+          ? await saveWeightGoal({ goal, start_date: startDate })
+          : await saveWeightGoal({ goal, start_date: startDate, target_weight: target, goal_date: date, ...paceInput! });
       toast.success("Goal saved");
       onSaved(saved);
       onClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save goal");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleRemove() {
-    setSaving(true);
-    try {
-      await clearWeightGoal();
-      toast.success("Goal removed");
-      onSaved(null);
-      onClose();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to remove goal");
     } finally {
       setSaving(false);
     }
@@ -232,7 +228,7 @@ export function WeightGoalDrawer({
       <DrawerContent>
         <form onSubmit={handleSave} className="overflow-y-auto">
           <DrawerHeader>
-            <DrawerTitle>Body-weight goal</DrawerTitle>
+            <DrawerTitle>{state.goal ? "Edit goal" : "New goal"}</DrawerTitle>
             <p className="text-sm text-muted-foreground">
               {current != null
                 ? `Now ${fmt(Math.round(current * 10) / 10)} ${units} (7-day average)`
@@ -261,6 +257,28 @@ export function WeightGoalDrawer({
                   {opt.label}
                 </button>
               ))}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="goal-start" className="label-caps">
+                Goal starts from
+              </label>
+              <input
+                id="goal-start"
+                type="date"
+                value={startDate}
+                min={minStart}
+                max={today}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-11 rounded-xl border border-input bg-background px-4 text-sm text-foreground outline-none focus:border-primary"
+              />
+              {!startValid ? (
+                <p className="text-[13px] text-destructive">Pick today or a date within the last year.</p>
+              ) : suggestion && suggestion.start_date === startDate && startDate !== today ? (
+                <p className="text-[13px] text-muted-foreground">
+                  Measured from {fmt(Math.round(suggestion.start_weight * 10) / 10)} {units}, your average then.
+                </p>
+              ) : null}
             </div>
 
             {goal === "maintain" ? (
@@ -415,7 +433,7 @@ export function WeightGoalDrawer({
                     id="goal-date"
                     type="date"
                     value={date}
-                    min={todayISO()}
+                    min={addDaysISO(today, 1)}
                     onChange={(e) => {
                       setDate(e.target.value);
                       setDateTouched(true);
@@ -424,6 +442,10 @@ export function WeightGoalDrawer({
                   />
                   {suggestError ? (
                     <p className="text-[13px] text-destructive">{suggestError}</p>
+                  ) : suggestion?.goal_date_passed && !date ? (
+                    <p className="text-[13px] text-muted-foreground">
+                      From that start, this pace would already have finished. Pick a date ahead.
+                    </p>
                   ) : usingSuggestion ? (
                     <p className="text-[13px] text-muted-foreground">
                       Suggested: {suggestion.weeks} weeks at {fmtPace(suggestion.weekly_change, 1)} {units} a week.
@@ -446,14 +468,14 @@ export function WeightGoalDrawer({
               {saving && <Loader2 className="animate-spin" />}
               Save goal
             </Button>
-            {state.goal ? (
+            {state.goal && onEndRequest ? (
               <button
                 type="button"
-                onClick={handleRemove}
+                onClick={onEndRequest}
                 disabled={saving}
-                className="h-11 rounded-xl text-sm text-destructive transition-colors disabled:opacity-50"
+                className="h-11 rounded-xl text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
               >
-                Remove goal
+                End this goal
               </button>
             ) : (
               <button

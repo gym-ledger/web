@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Sparkline } from "@/components/progress/mini-chart";
 import { fetchWeightForDate, WeightEntry } from "@/lib/api/weight";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { fetchWeightGoal, type WeightGoalState } from "@/lib/api/profile";
+import { WEIGHT_GOAL_QUERY_KEY, paceVerdict, planGapText } from "@/components/weight/weight-goal-card";
 
 function todayISO() {
   return new Date().toISOString().split("T")[0];
@@ -46,6 +48,20 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   );
 }
 
+/** One line on the active goal, e.g. "On track · 0.4 kg ahead of plan". */
+function goalStatusLine(state: WeightGoalState | undefined): { title: string; detail: string | null } | null {
+  const goal = state?.goal;
+  if (!state || !goal) return null;
+  if (goal.can_complete && goal.goal !== "maintain") {
+    return { title: goal.target_reached ? "Target reached" : "Goal date reached", detail: "mark it complete in Progress" };
+  }
+  const verdict = paceVerdict(goal, state.weight_units);
+  return {
+    title: verdict.title || "Goal set",
+    detail: planGapText(goal, state.current_weight?.weight ?? null, state.weight_units),
+  };
+}
+
 export function WeightHomeWidget() {
   const router = useRouter();
   const today = todayISO();
@@ -53,6 +69,8 @@ export function WeightHomeWidget() {
     fetchWeightForDate(today).then((d) => d.weight_entries),
   );
   const entries = data ?? [];
+  const goalState = useCachedQuery<WeightGoalState>(WEIGHT_GOAL_QUERY_KEY, fetchWeightGoal).data;
+  const goalLine = goalStatusLine(goalState);
 
   const sorted = [...entries].sort((a, b) => a.day.localeCompare(b.day));
   const latest = sorted[sorted.length - 1] ?? null;
@@ -124,6 +142,12 @@ export function WeightHomeWidget() {
 
         {sparkValues.length >= 2 && <Sparkline data={sparkValues} width={110} height={48} />}
       </div>
+      {goalLine && (
+        <p className="mt-3 border-t border-line pt-2.5 text-[13px]">
+          <span className="font-semibold">{goalLine.title}</span>
+          {goalLine.detail && <span className="text-muted-foreground"> · {goalLine.detail}</span>}
+        </p>
+      )}
     </motion.button>
   );
 }
