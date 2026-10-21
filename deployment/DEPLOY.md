@@ -1,4 +1,4 @@
-# Deployment Guide — gym-app-nextjs
+# Deployment Guide — gym-ledger/web
 
 Runs as a single Docker container serving the Next.js standalone build on port **3000**.
 
@@ -26,8 +26,8 @@ Runs as a single Docker container serving the Next.js standalone build on port *
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url> gym-app-nextjs
-cd gym-app-nextjs
+git clone https://github.com/gym-ledger/web.git web
+cd web
 ```
 
 ### 2. Create `.env`
@@ -42,7 +42,7 @@ Open `.env` and set:
 NEXT_PUBLIC_API_URL=http://your-server-ip-or-domain:4000/api/v1
 ```
 
-Use the public IP or domain where `workout-gym-api` is reachable from the user's browser — not `localhost`.
+Use the public IP or domain where the API (`gym-ledger/api`) is reachable from the user's browser — not `localhost`.
 
 ### 3. Make `deploy.sh` executable (first time only)
 
@@ -68,7 +68,7 @@ curl -I http://localhost:3000
 View logs:
 
 ```bash
-docker logs -f gym-app-nextjs
+docker logs -f gym-ledger-web
 ```
 
 ---
@@ -105,7 +105,7 @@ ports:
 
 **Container crashes immediately**
 ```bash
-docker logs gym-app-nextjs
+docker logs gym-ledger-web
 ```
 A build error during `npm run build` inside Docker usually means a TypeScript or ESLint error. Run `npm run build` locally to reproduce.
 

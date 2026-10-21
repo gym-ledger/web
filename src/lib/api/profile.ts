@@ -90,7 +90,7 @@ export async function setAiCheckins(enabled: boolean, consent = false): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// Body-weight goal — see workout-gym-api/algorithms/weekly-checkin.md §5
+// Body-weight goal — see gym-ledger/api/algorithms/weekly-checkin.md §5
 // ---------------------------------------------------------------------------
 
 export type WeightGoalType = "lose" | "maintain" | "gain";

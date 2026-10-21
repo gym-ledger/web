@@ -1,3 +1,6 @@
+# Fixed, so the project (and its volumes) don't change with the folder name.
+name: gym-ledger-web
+
 services:
   app:
     build:
@@ -8,7 +11,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_OPERATOR_NAME: ${NEXT_PUBLIC_OPERATOR_NAME:-}
         NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL: ${NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL:-}
-    container_name: gym-app-nextjs
+    container_name: gym-ledger-web
     restart: unless-stopped
     ports:
       - "3000:3000"

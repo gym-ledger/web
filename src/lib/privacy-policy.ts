@@ -1,5 +1,5 @@
 /**
- * Must equal PRIVACY_POLICY_VERSION in workout-gym-api/src/config/constants.ts.
+ * Must equal PRIVACY_POLICY_VERSION in gym-ledger/api/src/config/constants.ts.
  * Bump both together whenever /privacy changes; every user is asked to accept again.
  */
 export const PRIVACY_POLICY_VERSION = "2026-10-21";

@@ -1,4 +1,4 @@
-# gym-app-nextjs
+# gym-ledger/web
 
 Mobile-first web app for end users — workout tracking, body weight progress, and program management.
 
