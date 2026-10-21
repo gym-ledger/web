@@ -11,6 +11,11 @@ export interface UserProfile {
   has_password: boolean;
   /** Set once the user finishes or skips onboarding; null sends them to it. */
   onboarded_at: string | null;
+  /** False until the user accepts the current privacy policy; the app asks before anything else. */
+  privacy_policy_accepted: boolean;
+  current_privacy_policy_version: string;
+  /** AI weekly check-ins are opt-in. */
+  ai_checkins_enabled: boolean;
   created_at: string;
 }
 
@@ -72,6 +77,16 @@ export async function completeOnboarding(
 /** Marks the user onboarded without saving any answers. */
 export async function skipOnboarding(): Promise<UserProfile> {
   return apiClient.post<UserProfile>("/user/profile/onboarding/skip");
+}
+
+/** `version` is the policy the user was shown; the API refuses an outdated one (409). */
+export async function acceptPrivacyPolicy(version: string): Promise<UserProfile> {
+  return apiClient.post<UserProfile>("/user/profile/privacy-policy/accept", { version });
+}
+
+/** Turning on needs `consent: true` from the AI consent sheet. */
+export async function setAiCheckins(enabled: boolean, consent = false): Promise<UserProfile> {
+  return apiClient.put<UserProfile>("/user/profile/ai-checkins", { enabled, consent });
 }
 
 // ---------------------------------------------------------------------------

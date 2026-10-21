@@ -137,6 +137,12 @@ export default function OnboardingPage() {
     }
   }, [_hasHydrated, status, router]);
 
+  // The privacy policy comes before onboarding.
+  const privacyAccepted = useAuthStore((s) => s.user?.privacy_policy_accepted);
+  useEffect(() => {
+    if (privacyAccepted === false) router.replace("/accept-privacy");
+  }, [privacyAccepted, router]);
+
   // Users who already saved settings keep their units, height and timezone.
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -174,7 +180,7 @@ export default function OnboardingPage() {
     setSkipping(true);
     try {
       const user = await skipOnboarding();
-      setUser({ id: user.id, onboarded_at: user.onboarded_at });
+      setUser({ id: user.id, onboarded_at: user.onboarded_at, privacy_policy_accepted: user.privacy_policy_accepted });
       router.replace("/home");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't skip right now. Try again.");
@@ -196,7 +202,7 @@ export default function OnboardingPage() {
         training_days_per_week: trainingDays,
         equipment,
       });
-      setUser({ id: user.id, onboarded_at: user.onboarded_at });
+      setUser({ id: user.id, onboarded_at: user.onboarded_at, privacy_policy_accepted: user.privacy_policy_accepted });
       // The answers are saved; a failed plan fetch just means no suggestions.
       const plans = await fetchPublicWorkoutPlans().catch(() => []);
       setSuggestions(suggestPlans(plans, trainingDays));

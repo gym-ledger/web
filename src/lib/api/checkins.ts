@@ -87,7 +87,8 @@ export interface WeeklyCheckin {
 }
 
 export interface WeeklyCheckinResponse {
-  status: WeeklyCheckin["status"];
+  /** "disabled": the user hasn't turned AI check-ins on (checkin is null). */
+  status: WeeklyCheckin["status"] | "disabled";
   checkin: WeeklyCheckin | null;
 }
 

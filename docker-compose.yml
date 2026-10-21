@@ -6,6 +6,8 @@ services:
       args:
         # Read from the .env file at build time — NEXT_PUBLIC_* vars are baked in at build
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_OPERATOR_NAME: ${NEXT_PUBLIC_OPERATOR_NAME:-}
+        NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL: ${NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL:-}
     container_name: gym-app-nextjs
     restart: unless-stopped
     ports:

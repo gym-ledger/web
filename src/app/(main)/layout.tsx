@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/shared/bottom-nav";
 import { OfflineBanner } from "@/components/shared/offline-banner";
 import { useAuthStore } from "@/auth/authStore";
 import { fetchProfile } from "@/lib/api/profile";
+import { postLoginPath } from "@/auth/postLoginPath";
 
 const FULLSCREEN_ROUTES = ["/workout/active"];
 
@@ -31,14 +32,15 @@ export default function MainLayout({
   }, [_hasHydrated, status, router]);
 
   // A refreshed session has no user object (only login returns one), so
-  // fetch it once to learn whether onboarding is still due. Offline or on
+  // fetch it once to learn whether the privacy policy or onboarding is still
+  // due. Offline or on
   // error the check is skipped rather than blocking the app.
   useEffect(() => {
     if (status !== "authenticated" || user) return;
     let cancelled = false;
     fetchProfile()
       .then((profile) => {
-        if (!cancelled) setUser({ id: profile.id, onboarded_at: profile.onboarded_at });
+        if (!cancelled) setUser({ id: profile.id, onboarded_at: profile.onboarded_at, privacy_policy_accepted: profile.privacy_policy_accepted });
       })
       .catch(() => {});
     return () => {
@@ -47,9 +49,9 @@ export default function MainLayout({
   }, [status, user, setUser]);
 
   useEffect(() => {
-    if (status === "authenticated" && user?.onboarded_at === null) {
-      router.replace("/onboarding");
-    }
+    if (status !== "authenticated") return;
+    const next = postLoginPath(user);
+    if (next !== "/home") router.replace(next);
   }, [status, user, router]);
 
   if (!_hasHydrated || status === "loading") {

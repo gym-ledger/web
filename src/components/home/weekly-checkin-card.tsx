@@ -13,6 +13,7 @@ import {
   type WeightPaceStatus,
 } from "@/lib/api/checkins";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { AiCheckinsConsentDrawer } from "@/components/profile/ai-checkins-consent-drawer";
 import { cn } from "@/lib/utils";
 
 // Another request may be writing the note right now; check back a few times.
@@ -122,6 +123,62 @@ function StatsStrip({ checkin }: { checkin: WeeklyCheckin }) {
   );
 }
 
+const INVITE_HIDDEN_KEY = "apex:ai-checkin-invite-hidden";
+
+/** AI check-ins are opt-in; this offers them until the user says "not now". */
+function AiCheckinsInvite({ onEnabled }: { onEnabled: () => void }) {
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(INVITE_HIDDEN_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [consentOpen, setConsentOpen] = useState(false);
+  if (hidden) return null;
+
+  function hide() {
+    setHidden(true);
+    try {
+      localStorage.setItem(INVITE_HIDDEN_KEY, "1");
+    } catch {
+      // Private mode: it just shows again next time.
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-2.5">
+      <h2 className="label-caps text-primary">Weekly check-in</h2>
+      <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="font-display text-[22px] leading-tight font-bold">Get a weekly AI coach note</h3>
+          <button
+            type="button"
+            onClick={hide}
+            aria-label="Hide this"
+            className="-m-2 flex size-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <p className="text-[14px] text-muted-foreground">
+          Off by default. Turn it on to get a short note on last week&apos;s training and weight trend. You can turn it
+          on later in Settings.
+        </p>
+        <button
+          type="button"
+          onClick={() => setConsentOpen(true)}
+          className="-mx-1 flex min-h-11 items-center justify-between rounded-xl px-1 text-[13px] font-semibold text-primary"
+        >
+          See what&apos;s shared and turn on
+          <ChevronRight className="size-4" />
+        </button>
+      </article>
+      <AiCheckinsConsentDrawer open={consentOpen} onClose={() => setConsentOpen(false)} onEnabled={onEnabled} />
+    </section>
+  );
+}
+
 /**
  * Last week's AI-written check-in. The numbers come from the API's own
  * stats; only the wording is generated. Hidden once dismissed, or when the
@@ -143,6 +200,9 @@ export function WeeklyCheckinCard() {
   }, [status, data, refresh]);
 
   const checkin = data?.checkin ?? null;
+  if (status === "disabled") {
+    return <AiCheckinsInvite onEnabled={() => void refresh()} />;
+  }
   // A skipped week (not enough weigh-ins / workouts) is explained by a notification instead.
   if (!checkin || checkin.dismissed || checkin.status === "skipped") return null;
 

@@ -11,11 +11,14 @@ import { Button } from "@/components/ui/button";
 import { ChangePasswordDrawer } from "@/components/profile/change-password-drawer";
 import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
 import { EndWeightGoalDrawer } from "@/components/profile/end-weight-goal-drawer";
+import { AiCheckinsConsentDrawer } from "@/components/profile/ai-checkins-consent-drawer";
 import { ApiError } from "@/lib/api-client";
+import { PRIVACY_AI_SECTION_ID } from "@/lib/privacy-policy";
 import {
   fetchPreferences,
   fetchProfile,
   fetchWeightGoal,
+  setAiCheckins,
   updatePreferences,
   type HeightUnits,
   type UserPreferences,
@@ -75,6 +78,26 @@ export default function SettingsPage() {
   const [goalState, setGoalState] = useState<WeightGoalState | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   const [endGoalOpen, setEndGoalOpen] = useState(false);
+  const [aiConsentOpen, setAiConsentOpen] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+
+  // Turning on goes through the consent sheet; turning off is immediate.
+  async function handleAiToggle() {
+    if (!profile) return;
+    if (!profile.ai_checkins_enabled) {
+      setAiConsentOpen(true);
+      return;
+    }
+    setAiSaving(true);
+    try {
+      setProfile(await setAiCheckins(false));
+      toast.success("AI check-ins turned off");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't turn off AI check-ins");
+    } finally {
+      setAiSaving(false);
+    }
+  }
 
   useEffect(() => {
     Promise.allSettled([fetchProfile(), fetchPreferences(), fetchWeightGoal()])
@@ -230,6 +253,31 @@ export default function SettingsPage() {
 
           {profile && (
             <section className="flex flex-col">
+              <h2 className="label-caps border-b border-input pb-2">AI</h2>
+              <Row
+                label="Weekly AI check-in"
+                sub={profile.ai_checkins_enabled ? "On — numbers only, no contact details" : "Off"}
+              >
+                <button
+                  type="button"
+                  disabled={aiSaving}
+                  onClick={handleAiToggle}
+                  className="h-9 rounded-full border border-input bg-card px-3 text-[13px] font-semibold disabled:opacity-50"
+                >
+                  {profile.ai_checkins_enabled ? "Turn off" : "Turn on"}
+                </button>
+              </Row>
+              <Link
+                href={`/privacy#${PRIVACY_AI_SECTION_ID}`}
+                className="flex min-h-11 items-center text-[13px] font-semibold text-primary"
+              >
+                What is shared with the AI provider
+              </Link>
+            </section>
+          )}
+
+          {profile && (
+            <section className="flex flex-col">
               <h2 className="label-caps border-b border-input pb-2">Security</h2>
               <Row
                 label="Password"
@@ -269,6 +317,8 @@ export default function SettingsPage() {
           onEnded={() => setGoalState((g) => (g ? { ...g, goal: null } : g))}
         />
       )}
+
+      <AiCheckinsConsentDrawer open={aiConsentOpen} onClose={() => setAiConsentOpen(false)} onEnabled={setProfile} />
 
       {profile && (
         <ChangePasswordDrawer
