@@ -20,6 +20,7 @@ import {
   type IdentityValue,
 } from "@/components/auth/identity-field";
 import { useAuthConfig } from "@/components/auth/use-auth-config";
+import { Captcha, type CaptchaHandle } from "@/components/auth/captcha";
 import { OtpInput, OTP_LENGTH, emptyOtp } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
 
@@ -41,7 +42,8 @@ export default function LoginPage() {
 
   // Codes always go to email; to phone numbers only when the instance has
   // WhatsApp delivery set up. Otherwise phone numbers sign in by password.
-  const { phoneOtpEnabled } = useAuthConfig();
+  const { phoneOtpEnabled, captcha: captchaConfig } = useAuthConfig();
+  const captchaRef = useRef<CaptchaHandle>(null);
   const codeAvailable = identity.method === "email" || phoneOtpEnabled;
   const activeMode: Mode = codeAvailable ? mode : "password";
 
@@ -78,7 +80,7 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await sendLoginOtp(toIdentity(identity));
+      await sendLoginOtp(toIdentity(identity), await captchaRef.current?.getToken());
       setStep("otp");
       setOtpDigits(emptyOtp());
       setResendCountdown(RESEND_COOLDOWN);
@@ -140,6 +142,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+      <Captcha config={captchaConfig} ref={captchaRef} />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -332,6 +335,13 @@ export default function LoginPage() {
             : codeAvailable
               ? "No password yet? Sign in with a code, then set one in Profile → Settings."
               : "New here, or no password yet? Sign in with your email to get a code."}
+        </p>
+        <p className="mt-3 text-[13px] text-muted-foreground">
+          New accounts are asked to accept the{" "}
+          <Link href="/privacy" className="font-semibold text-primary">
+            privacy policy
+          </Link>{" "}
+          after the first sign-in.
         </p>
       </motion.div>
     </div>

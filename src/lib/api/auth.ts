@@ -17,6 +17,14 @@ export interface LoginResponse {
 export interface AuthConfig {
   /** Whether codes can be sent to phone numbers (over WhatsApp). */
   phoneOtpEnabled: boolean;
+  /** The CAPTCHA "send code" needs, or null when the instance has none. */
+  captcha: CaptchaConfig | null;
+}
+
+/** Self-hosted ALTCHA: the widget fetches challenges from `challenge_path` on the API. */
+export interface CaptchaConfig {
+  provider: "altcha";
+  challenge_path: string;
 }
 
 // Mirrors PASSWORD_MIN_LENGTH / PASSWORD_MAX_LENGTH on the API.
@@ -29,8 +37,9 @@ export function getAuthConfig() {
   return apiClient.get<AuthConfig>("/auth/config");
 }
 
-export function sendLoginOtp(identity: Identity) {
-  return apiClient.post<null>("/auth/login/send-otp", identity, PUBLIC);
+/** `captcha` is the solved CAPTCHA payload (see components/auth/captcha.tsx). */
+export function sendLoginOtp(identity: Identity, captcha?: string) {
+  return apiClient.post<null>("/auth/login/send-otp", { ...identity, captcha }, PUBLIC);
 }
 
 export function verifyLoginOtp(identity: Identity, otp: string) {
@@ -42,8 +51,8 @@ export function loginWithPassword(identity: Identity, password: string) {
 }
 
 /** Resolves the same way whether or not an account exists for `identity`. */
-export function sendPasswordResetOtp(identity: Identity) {
-  return apiClient.post<null>("/auth/forgot-password/send-otp", identity, PUBLIC);
+export function sendPasswordResetOtp(identity: Identity, captcha?: string) {
+  return apiClient.post<null>("/auth/forgot-password/send-otp", { ...identity, captcha }, PUBLIC);
 }
 
 export function verifyPasswordResetOtp(identity: Identity, otp: string) {

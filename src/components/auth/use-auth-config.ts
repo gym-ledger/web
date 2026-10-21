@@ -6,7 +6,7 @@ import { getAuthConfig, type AuthConfig } from "@/lib/api/auth";
 // Until the API answers, assume the most limited setup: phone numbers sign in
 // with a password only. If phone codes are enabled, the option appears once
 // the config loads rather than flashing in and then disappearing.
-const FALLBACK: AuthConfig = { phoneOtpEnabled: false };
+const FALLBACK: AuthConfig = { phoneOtpEnabled: false, captcha: null };
 
 let configPromise: Promise<AuthConfig> | null = null;
 

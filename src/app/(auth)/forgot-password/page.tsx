@@ -22,6 +22,7 @@ import {
   type IdentityValue,
 } from "@/components/auth/identity-field";
 import { useAuthConfig } from "@/components/auth/use-auth-config";
+import { Captcha, type CaptchaHandle } from "@/components/auth/captcha";
 import { OtpInput, OTP_LENGTH, emptyOtp } from "@/components/auth/otp-input";
 import { PasswordField } from "@/components/auth/password-field";
 
@@ -39,7 +40,8 @@ const HEADINGS: Record<Step, { eyebrow: string; title: string }> = {
 export default function ForgotPasswordPage() {
   const [step, setStep] = useState<Step>("input");
   const [identity, setIdentity] = useState<IdentityValue>(emptyIdentity);
-  const { phoneOtpEnabled } = useAuthConfig();
+  const { phoneOtpEnabled, captcha: captchaConfig } = useAuthConfig();
+  const captchaRef = useRef<CaptchaHandle>(null);
   const [otpDigits, setOtpDigits] = useState(emptyOtp);
   const [resendCountdown, setResendCountdown] = useState(0);
   const [resetToken, setResetToken] = useState<string | null>(null);
@@ -67,7 +69,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
     try {
-      await sendPasswordResetOtp(toIdentity(identity));
+      await sendPasswordResetOtp(toIdentity(identity), await captchaRef.current?.getToken());
       setStep("otp");
       setOtpDigits(emptyOtp());
       setResendCountdown(RESEND_COOLDOWN);
@@ -122,6 +124,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10">
+      <Captcha config={captchaConfig} ref={captchaRef} />
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
