@@ -1,16 +1,20 @@
 "use client";
 
 import { logWorkoutSetsBatch, type BatchSetItem } from "@/lib/api/workout";
-import { useWorkoutSetQueueStore, type ResolvedSet } from "./workoutSetQueue";
+import { useWorkoutSetQueueStore, type QueuedSet, type ResolvedSet } from "./workoutSetQueue";
 import { startDraftSession, useWorkoutDraftStore } from "./workoutDraft";
 
 let flushing = false;
 
+/** Most sets the API takes in one batch call (it rejects more). */
+const MAX_SETS_PER_BATCH = 100;
+
 /**
- * Sends every currently-queued set in one batch call and reconciles the
- * store from the response. Safe to call from multiple places (the periodic
- * timer in WorkoutSyncManager, a manual "Sync now" button) — concurrent
- * calls while one is already in flight are no-ops.
+ * Sends every currently-queued set (in batch calls of up to
+ * MAX_SETS_PER_BATCH) and reconciles the store from the responses. Safe to
+ * call from multiple places (the periodic timer in WorkoutSyncManager, a
+ * manual "Sync now" button) — concurrent calls while one is already in
+ * flight are no-ops.
  */
 export async function flushWorkoutSetQueue(): Promise<void> {
   if (flushing) return;
@@ -42,9 +46,28 @@ export async function flushWorkoutSetQueue(): Promise<void> {
     flushing = false;
     return;
   }
-  const clientIds = pending.map((q) => q.clientId);
-  store.markSyncing(clientIds);
+  store.markSyncing(pending.map((q) => q.clientId));
 
+  try {
+    for (let start = 0; start < pending.length; start += MAX_SETS_PER_BATCH) {
+      // A failed chunk stops here; it and the chunks after it are retried on the next flush.
+      if (!(await flushChunk(pending.slice(start, start + MAX_SETS_PER_BATCH)))) {
+        useWorkoutSetQueueStore.getState().markFailed(pending.slice(start).map((q) => q.clientId));
+        useWorkoutSetQueueStore.getState().setLastFlushFailedAt(Date.now());
+        return;
+      }
+    }
+    // Reached the server successfully (even if some items were individually
+    // rejected) — that's what the 30s/60s backoff cares about, not
+    // per-item outcomes.
+    useWorkoutSetQueueStore.getState().setLastFlushFailedAt(null);
+  } finally {
+    flushing = false;
+  }
+}
+
+/** Sends one batch call and reconciles the store. `false` when the call itself failed. */
+async function flushChunk(pending: QueuedSet[]): Promise<boolean> {
   try {
     const items: BatchSetItem[] = pending.map((q) => ({
       clientId: q.clientId,
@@ -84,14 +107,8 @@ export async function flushWorkoutSetQueue(): Promise<void> {
     if (failedClientIds.length > 0) {
       useWorkoutSetQueueStore.getState().markFailed(failedClientIds);
     }
-    // Reached the server successfully (even if some items were individually
-    // rejected) — that's what the 30s/60s backoff cares about, not
-    // per-item outcomes.
-    useWorkoutSetQueueStore.getState().setLastFlushFailedAt(null);
+    return true;
   } catch {
-    useWorkoutSetQueueStore.getState().markFailed(clientIds);
-    useWorkoutSetQueueStore.getState().setLastFlushFailedAt(Date.now());
-  } finally {
-    flushing = false;
+    return false;
   }
 }
