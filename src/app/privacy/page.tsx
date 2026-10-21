@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import {
+  ACCOUNT_DELETION_GRACE_DAYS,
+  BACKUP_RETENTION_DAYS,
+  DATA_EXPORT_TTL_DAYS,
   OPERATOR_NAME,
   PRIVACY_AI_SECTION_ID,
   PRIVACY_CONTACT_EMAIL,
+  PRIVACY_DELETION_SECTION_ID,
   PRIVACY_POLICY_UPDATED,
 } from "@/lib/privacy-policy";
 
@@ -63,7 +67,12 @@ export default function PrivacyPolicyPage() {
         <p className="text-[15px] leading-relaxed text-muted-foreground">
           This app is free, open-source software. Anyone can run their own copy, so the person or group
           responsible for your data is whoever runs the copy you signed up to: here, <strong className="text-foreground">{OPERATOR_NAME}</strong>.
-          There are no ads, no tracking or analytics scripts, and your data is never sold.
+          There are no ads, no tracking or analytics scripts, and your data is never sold. Using the app also means
+          agreeing to the{" "}
+          <Link href="/terms" className="font-semibold text-primary">
+            terms of use
+          </Link>
+          .
         </p>
       </header>
 
@@ -75,6 +84,7 @@ export default function PrivacyPolicyPage() {
             <><strong>Training:</strong> your plans, workouts and every set you log (weight, reps, effort, warm-up and drop sets, and any discomfort notes you write), plus the muscle-training numbers the app works out from them.</>,
             <><strong>Body:</strong> body-weight entries, height, units, time zone, body-weight goals and their history, and your onboarding answers (training goal, experience, days per week, equipment).</>,
             <><strong>AI check-ins</strong>, only if you turn them on: each week&apos;s summary numbers and the note written from them (see below).</>,
+            <><strong>Data exports</strong> you ask for: a copy of all of the above, kept for {DATA_EXPORT_TTL_DAYS} days so you can download it.</>,
           ]}
         />
       </Section>
@@ -159,8 +169,31 @@ export default function PrivacyPolicyPage() {
 
       <Section title="How long it is kept">
         <p>
-          Your data is kept while your account exists. Used and expired sign-in codes and sessions stop working
-          straight away, and AI request records are deleted after one year.
+          Your data is kept while your account exists, and deleted when you delete your account (next section). Used and
+          expired sign-in codes and sessions stop working straight away, data exports are removed after{" "}
+          {DATA_EXPORT_TTL_DAYS} days, and AI request records are deleted after one year.
+        </p>
+        <p>
+          Copies of the database kept as backups, in case of a failure, are deleted after at most {BACKUP_RETENTION_DAYS}{" "}
+          days, so anything deleted from the app is gone from them within that time too.
+        </p>
+      </Section>
+
+      <Section id={PRIVACY_DELETION_SECTION_ID} title="Deleting your account">
+        <p>
+          You can delete your account in Settings, confirming with your password (or a code we send you). You are signed
+          out on every device straight away, and the account is permanently deleted {ACCOUNT_DELETION_GRACE_DAYS} days
+          later. If you sign in before then, you can cancel the deletion.
+        </p>
+        <p>
+          On that date <strong>everything about you is deleted</strong>: your account and contact details, settings,
+          body weight and goals, plans, every workout and set, check-ins, notifications and sessions.
+        </p>
+        <p>
+          Before that, your training is added to <strong>anonymous totals</strong> that we keep to understand how the app is
+          used and to improve it: for each exercise and calendar month, the number of people, workouts, working sets and
+          reps, summed over every deleted account. They hold no name, contact detail, account id, body weight, weights
+          lifted, notes or dates finer than a month, and can&apos;t be linked back to you.
         </p>
       </Section>
 
@@ -169,7 +202,9 @@ export default function PrivacyPolicyPage() {
           items={[
             <>See and correct your details in the app, under Profile and Settings.</>,
             <>Turn AI check-ins off at any time in Settings.</>,
-            <>Ask for a copy of your data, or for your account and all its data to be deleted, by contacting {contact}.</>,
+            <>Download a copy of all your data in Settings (Your data). It is prepared in the background, and you get a notification when it is ready.</>,
+            <>Delete your account and all its data in Settings (see above).</>,
+            <>Anything else about your data: contact {contact}.</>,
           ]}
         />
       </Section>

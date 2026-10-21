@@ -338,6 +338,10 @@ export default function LoginPage() {
         </p>
         <p className="mt-3 text-[13px] text-muted-foreground">
           New accounts are asked to accept the{" "}
+          <Link href="/terms" className="font-semibold text-primary">
+            terms of use
+          </Link>{" "}
+          and{" "}
           <Link href="/privacy" className="font-semibold text-primary">
             privacy policy
           </Link>{" "}

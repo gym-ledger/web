@@ -13,15 +13,17 @@ import { acceptPrivacyPolicy } from "@/lib/api/profile";
 import { PRIVACY_POLICY_UPDATED, PRIVACY_POLICY_VERSION } from "@/lib/privacy-policy";
 
 const SUMMARY = [
+  "You must be 16 or older. The app's numbers and notes are general information, not medical advice.",
   "Your account, workouts and body-weight data are stored only to run the app for you.",
   "No ads, no tracking scripts, and your data is never sold.",
   "Sign-in codes are sent through an email or WhatsApp provider.",
   "AI check-ins are off unless you turn them on, and never include your name or contact details.",
+  "You can download your data or delete your account at any time in Settings.",
 ];
 
 /**
- * Shown after sign-in (new accounts, and existing ones whenever the policy
- * changes) before anything else in the app.
+ * Shown after sign-in (new accounts, and existing ones whenever the terms or
+ * the policy change) before anything else in the app.
  */
 export default function AcceptPrivacyPage() {
   const router = useRouter();
@@ -63,9 +65,9 @@ export default function AcceptPrivacyPage() {
   return (
     <div className="flex min-h-screen flex-col px-4 pt-10 pb-6">
       <div className="flex flex-col gap-2">
-        <h1 className="font-display text-[32px] leading-none font-bold">Your privacy</h1>
+        <h1 className="font-display text-[32px] leading-none font-bold">Terms &amp; privacy</h1>
         <p className="text-[15px] text-muted-foreground">
-          Please read the privacy policy before you start. Updated {PRIVACY_POLICY_UPDATED}.
+          Please read the terms of use and the privacy policy before you start. Updated {PRIVACY_POLICY_UPDATED}.
         </p>
       </div>
 
@@ -77,7 +79,10 @@ export default function AcceptPrivacyPage() {
         ))}
       </ul>
 
-      <Link href="/privacy" className="mt-4 flex min-h-11 items-center text-[15px] font-semibold text-primary">
+      <Link href="/terms" className="mt-4 flex min-h-11 items-center text-[15px] font-semibold text-primary">
+        Read the terms of use
+      </Link>
+      <Link href="/privacy" className="flex min-h-11 items-center text-[15px] font-semibold text-primary">
         Read the full privacy policy
       </Link>
 
@@ -89,7 +94,7 @@ export default function AcceptPrivacyPage() {
             onChange={(e) => setAgreed(e.target.checked)}
             className="mt-0.5 size-5 shrink-0 accent-primary"
           />
-          <span>I have read and accept the privacy policy.</span>
+          <span>I have read and accept the terms of use and the privacy policy.</span>
         </label>
         <Button size="xl" variant="light" className="w-full" disabled={!agreed || saving} onClick={handleAccept}>
           {saving && <Loader2 className="animate-spin" />}
