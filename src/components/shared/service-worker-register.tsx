@@ -13,9 +13,13 @@ export function ServiceWorkerRegister() {
   useEffect(() => {
     const stopInstallPrompt = initInstallPrompt();
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
-      // `updateViaCache: "none"` — always fetch sw.js itself fresh, so a new
-      // deploy's worker is picked up on the next visit.
-      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+      // The deployment id in the URL makes each deploy a new worker script, so
+      // it installs, re-precaches the pages from this build and drops the old
+      // pages cache. sw.js itself is the same file every deploy, so without
+      // it the browser would keep the old worker and its stale pages forever.
+      // `updateViaCache: "none"` — always fetch sw.js itself fresh.
+      const version = encodeURIComponent(process.env.NEXT_PUBLIC_DEPLOYMENT_ID ?? "dev");
+      navigator.serviceWorker.register(`/sw.js?v=${version}`, { updateViaCache: "none" }).catch(() => {});
     }
     return stopInstallPrompt;
   }, []);

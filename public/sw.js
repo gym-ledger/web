@@ -17,8 +17,13 @@
 // own offline copies of API data (src/lib/offline/apiResponseCache.ts, cache
 // "apex-api-v1", which this worker must not delete) and queues writes.
 
+// The app registers this file as /sw.js?v=<deployment id>. Pages are cached
+// per deploy: a page from an older build references /_next/static chunks the
+// server no longer has, so serving it after a deploy breaks the screen. The
+// static cache is shared across deploys (its file names are content hashes).
+const DEPLOYMENT = new URL(self.location.href).searchParams.get("v") || "dev";
 const STATIC_CACHE = "apex-sw-static";
-const PAGES_CACHE = "apex-sw-pages-v2";
+const PAGES_CACHE = `apex-sw-pages-${DEPLOYMENT}`;
 const OWN_CACHES = [STATIC_CACHE, PAGES_CACHE];
 // Caches from earlier versions of this worker.
 const LEGACY_CACHES = ["apex-runtime-v1"];
