@@ -12,6 +12,7 @@ import { ChangePasswordDrawer } from "@/components/profile/change-password-drawe
 import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
 import { EndWeightGoalDrawer } from "@/components/profile/end-weight-goal-drawer";
 import { AiCheckinsConsentDrawer } from "@/components/profile/ai-checkins-consent-drawer";
+import { YourDataSection } from "@/components/profile/your-data-section";
 import { ApiError } from "@/lib/api-client";
 import { PRIVACY_AI_SECTION_ID } from "@/lib/privacy-policy";
 import {
@@ -293,6 +294,8 @@ export default function SettingsPage() {
               </Row>
             </section>
           )}
+
+          <YourDataSection />
         </motion.div>
       )}
 

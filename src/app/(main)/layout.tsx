@@ -40,7 +40,14 @@ export default function MainLayout({
     let cancelled = false;
     fetchProfile()
       .then((profile) => {
-        if (!cancelled) setUser({ id: profile.id, onboarded_at: profile.onboarded_at, privacy_policy_accepted: profile.privacy_policy_accepted });
+        if (!cancelled) {
+          setUser({
+            id: profile.id,
+            onboarded_at: profile.onboarded_at,
+            privacy_policy_accepted: profile.privacy_policy_accepted,
+            deletion_scheduled_for: profile.deletion_scheduled_for,
+          });
+        }
       })
       .catch(() => {});
     return () => {

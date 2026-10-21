@@ -16,6 +16,8 @@ export interface UserProfile {
   current_privacy_policy_version: string;
   /** AI weekly check-ins are opt-in. */
   ai_checkins_enabled: boolean;
+  /** Set while the account is scheduled for deletion: the date it will be deleted. */
+  deletion_scheduled_for: string | null;
   created_at: string;
 }
 

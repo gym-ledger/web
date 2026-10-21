@@ -12,6 +12,7 @@ Part of Gym Ledger, alongside [`gym-ledger/api`](https://github.com/gym-ledger/a
 - **Progress.** Personal records with estimated one-rep max, weekly volume, a training-consistency streak, per-exercise history and a muscle map of what you've been training and what you've been skipping.
 - **Body weight.** Daily weigh-ins with a moving-average trend, and weight goals (cut, maintain or bulk) with a suggested pace, a goal line on the chart and a history of past goals.
 - **Weekly check-in.** A summary of each finished Monday–Sunday week; optionally (off by default, opt-in with consent) a short AI-written coaching note from those numbers. What is sent is listed in the app's privacy policy.
+- **Your data, your call.** Download everything stored about you as a JSON file (prepared in the background, with a notification when it's ready), or delete your account: signed out everywhere at once, deleted for good after 30 days unless you sign in and cancel.
 - **Sign-in without passwords.** A 6-digit code by email (or WhatsApp, if the instance enables it), with an optional password. A self-hosted proof-of-work CAPTCHA protects the "send code" step; no third-party CAPTCHA service.
 
 ## Tech stack
@@ -48,13 +49,14 @@ npm run dev                  # http://localhost:3000
 
 ## Configuration
 
-All three are read at **build time** (they end up in the browser bundle), so set them before `npm run build` or `docker compose up --build`.
+All of these are read at **build time** (they end up in the browser bundle), so set them before `npm run build` or `docker compose up --build`.
 
 | Variable | Required | What it is |
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | yes | Public URL of the API, ending in `/api/v1`, as the user's browser reaches it (not `localhost` on a server) |
 | `NEXT_PUBLIC_OPERATOR_NAME` | for a public instance | Who runs this instance, shown in the privacy policy |
-| `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` | for a public instance | Where users send data requests, shown in the privacy policy |
+| `NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL` | for a public instance | Where users send data requests, shown in the privacy policy and terms |
+| `NEXT_PUBLIC_TERMS_GOVERNING_LAW` | no | Whose laws govern the terms of use; defaults to `India` |
 
 ## Project layout
 
