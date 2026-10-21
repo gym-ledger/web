@@ -28,10 +28,10 @@ export default function SplashPage() {
           className="flex flex-col items-center gap-3"
         >
           <div className="flex size-20 items-center justify-center rounded-3xl bg-primary/10 ring-1 ring-primary/30">
-            <span className="text-4xl font-black tracking-tighter text-primary">A</span>
+            <span className="text-4xl font-black tracking-tighter text-primary">G</span>
           </div>
           <h1 className="text-5xl font-black tracking-tight text-foreground">
-            APEX
+            Gym Ledger
           </h1>
         </motion.div>
         <p className="text-sm font-medium tracking-widest text-muted-foreground uppercase">

@@ -5,7 +5,7 @@ import { Download, Share } from "lucide-react";
 import { isIosSafari, promptInstall, useInstallStore } from "@/lib/pwa/install";
 
 /**
- * "Install APEX" in Profile. Uses the browser's install prompt where there is
+ * "Install Gym Ledger" in Profile. Uses the browser's install prompt where there is
  * one (Chrome/Edge/Samsung on Android and desktop), shows the Share → Add to
  * Home Screen steps on iOS Safari, and hides itself once running as the
  * installed app or where installing isn't possible.
@@ -27,7 +27,7 @@ export function InstallAppCard() {
         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-input"
       >
         <div>
-          <p className="text-[15px] font-semibold">Install APEX</p>
+          <p className="text-[15px] font-semibold">Install Gym Ledger</p>
           <p className="text-[13px] text-muted-foreground">Opens full-screen from your home screen and works offline.</p>
         </div>
         <Download className="size-4 shrink-0 text-primary" />
@@ -39,7 +39,7 @@ export function InstallAppCard() {
     return (
       <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3.5">
         <div>
-          <p className="text-[15px] font-semibold">Install APEX</p>
+          <p className="text-[15px] font-semibold">Install Gym Ledger</p>
           <p className="text-[13px] text-muted-foreground">
             Tap <Share className="inline size-3.5 align-[-2px]" aria-label="Share" /> Share, then &ldquo;Add to Home
             Screen&rdquo;.

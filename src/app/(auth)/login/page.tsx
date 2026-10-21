@@ -152,7 +152,7 @@ export default function LoginPage() {
         {/* Logo + heading */}
         <div className="mb-10 flex flex-col items-start gap-6">
           <span className="font-display text-[40px] leading-none font-bold tracking-[0.04em]">
-            APEX<span className="text-primary">.</span>
+            Gym Ledger<span className="text-primary">.</span>
           </span>
           <AnimatePresence mode="wait">
             {step === "input" ? (

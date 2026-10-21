@@ -39,7 +39,7 @@ export default function SignupPage() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Create account</h1>
           <p className="text-sm text-muted-foreground">
-            Join APEX and start training smarter
+            Join Gym Ledger and start training smarter
           </p>
         </div>
 

@@ -4,8 +4,8 @@ import type { MetadataRoute } from "next";
 // app always renders dark (see the `dark` class hardcoded onto <html> in layout.tsx).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "APEX — Science-based Training",
-    short_name: "APEX",
+    name: "Gym Ledger — Science-based Training",
+    short_name: "Gym Ledger",
     description: "Track workouts, build strength, achieve your goals.",
     // Stable identity for the installed app, independent of start_url.
     id: "/",

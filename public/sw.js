@@ -1,4 +1,4 @@
-// APEX service worker — offline + slow-network support, hand-written.
+// Gym Ledger service worker — offline + slow-network support, hand-written.
 //
 // Not Workbox/Serwist: their Next integrations need a webpack build plugin,
 // and this app builds with Turbopack. Strategy:

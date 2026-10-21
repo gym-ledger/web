@@ -183,7 +183,7 @@ export default function LoginPage() {
                 className="flex flex-col items-center gap-1 text-center"
               >
                 <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-                <p className="text-sm text-muted-foreground">Sign in to your APEX account</p>
+                <p className="text-sm text-muted-foreground">Sign in to your Gym Ledger account</p>
               </motion.div>
             ) : (
               <motion.div

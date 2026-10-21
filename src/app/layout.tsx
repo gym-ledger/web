@@ -17,12 +17,12 @@ const barlowCondensed = Barlow_Semi_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "APEX — Science-based Training",
+  title: "Gym Ledger — Science-based Training",
   description: "Track workouts, build strength, achieve your goals.",
-  applicationName: "APEX",
+  applicationName: "Gym Ledger",
   appleWebApp: {
     capable: true,
-    title: "APEX",
+    title: "Gym Ledger",
     statusBarStyle: "black-translucent",
   },
 };
