@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Archived UI, kept for reference only (see src/archive/README.md).
+    "src/archive/**",
   ]),
 ]);
 

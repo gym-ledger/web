@@ -42,3 +42,5 @@ next-env.d.ts
 
 CLAUDE.md
 docs/
+# Internal notes, not published
+SLOW_NETWORK_PWA_AUDIT.md

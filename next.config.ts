@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   transpilePackages: ["geist"],
   reactCompiler: true,
+  async redirects() {
+    // The OTP login creates new accounts, so there is no separate sign-up.
+    return [{ source: "/signup", destination: "/login", permanent: false }];
+  },
   async headers() {
     return [
       {
