@@ -17,6 +17,7 @@ import {
   type PersonalRecord,
 } from "@/lib/api/workout";
 import { fetchUnreadNotificationCount } from "@/lib/api/notifications";
+import { useNotificationsChanged } from "@/lib/realtime/notificationStream";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
@@ -52,8 +53,9 @@ export default function HomePage() {
   const prs =
     useCachedQuery<PersonalRecord[]>(`home/recent-prs/${RECENT_PR_LIMIT}`, () => fetchRecentPRs(RECENT_PR_LIMIT))
       .data ?? null;
-  const unreadNotifications =
-    useCachedQuery<number>("home/unread-notifications", fetchUnreadNotificationCount).data ?? 0;
+  const unreadQuery = useCachedQuery<number>("home/unread-notifications", fetchUnreadNotificationCount);
+  const unreadNotifications = unreadQuery.data ?? 0;
+  useNotificationsChanged(() => void unreadQuery.refresh());
 
   const units = stats?.weight_units ?? "kg";
   const required = stats?.week.filter((d) => d.required) ?? [];

@@ -12,6 +12,7 @@ import {
   type AppNotification,
 } from "@/lib/api/notifications";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { useNotificationsChanged } from "@/lib/realtime/notificationStream";
 import { cn } from "@/lib/utils";
 
 function timeAgo(iso: string) {
@@ -29,7 +30,8 @@ type NotificationsData = { unread: number; notifications: AppNotification[] };
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const { data, loading, mutate } = useCachedQuery<NotificationsData>("notifications", fetchNotifications);
+  const { data, loading, mutate, refresh } = useCachedQuery<NotificationsData>("notifications", fetchNotifications);
+  useNotificationsChanged(() => void refresh());
   const notifications = data?.notifications ?? [];
   const unread = data?.unread ?? 0;
 

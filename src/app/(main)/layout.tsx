@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BottomNav } from "@/components/shared/bottom-nav";
 import { OfflineBanner } from "@/components/shared/offline-banner";
+import { NotificationStream } from "@/components/shared/notification-stream";
 import { useAuthStore } from "@/auth/authStore";
 import { fetchProfile } from "@/lib/api/profile";
 import { postLoginPath } from "@/auth/postLoginPath";
@@ -71,6 +72,7 @@ export default function MainLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <NotificationStream />
       {/* The active workout has its own sync bar. */}
       {!isFullscreen && <OfflineBanner />}
       <main className={isFullscreen ? "flex-1" : "flex-1 pb-24"}>
