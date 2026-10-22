@@ -4,10 +4,10 @@
  * gym-ledger/api/src/config/constants.ts. Bump both together whenever either
  * page changes; every user is asked to accept again.
  */
-export const PRIVACY_POLICY_VERSION = "2026-10-21.2";
+export const PRIVACY_POLICY_VERSION = "2026-10-23.1";
 
 /** Shown as the "Last updated" line of both pages. */
-export const PRIVACY_POLICY_UPDATED = "21 October 2026";
+export const PRIVACY_POLICY_UPDATED = "23 October 2026";
 
 /**
  * Who runs this instance. Self-hosters set these at build time so the policy
@@ -34,3 +34,10 @@ export const DATA_EXPORT_TTL_DAYS = 7;
  * survive in one. Backups must be set up to expire within this.
  */
 export const BACKUP_RETENTION_DAYS = 30;
+
+/**
+ * How long records of failed and slow requests are kept. Mirrors the API's
+ * REQUEST_LOG_RETENTION_DAYS default (api_request_issues); self-hosters who
+ * change one set NEXT_PUBLIC_REQUEST_LOG_RETENTION_DAYS to match.
+ */
+export const REQUEST_LOG_RETENTION_DAYS = Number(process.env.NEXT_PUBLIC_REQUEST_LOG_RETENTION_DAYS) || 30;

@@ -10,6 +10,7 @@ import {
   PRIVACY_CONTACT_EMAIL,
   PRIVACY_DELETION_SECTION_ID,
   PRIVACY_POLICY_UPDATED,
+  REQUEST_LOG_RETENTION_DAYS,
 } from "@/lib/privacy-policy";
 
 export const metadata: Metadata = {
@@ -84,6 +85,7 @@ export default function PrivacyPolicyPage() {
             <><strong>Training:</strong> your plans, workouts and every set you log (weight, reps, effort, warm-up and drop sets, and any discomfort notes you write), plus the muscle-training numbers the app works out from them.</>,
             <><strong>Body:</strong> body-weight entries, height, units, time zone, body-weight goals and their history, and your onboarding answers (training goal, experience, days per week, equipment).</>,
             <><strong>AI check-ins</strong>, only if you turn them on: each week&apos;s summary numbers and the note written from them (see below).</>,
+            <><strong>Errors and slow responses:</strong> when a request from your app to the server fails or takes longer than half a second, a record of it: when it happened, which action and address it was (the address can include the id of a workout, set or plan, never what you typed), the result code, how long it took, the error, and your account id. Nothing you sent, no IP address.</>,
             <><strong>Data exports</strong> you ask for: a copy of all of the above, kept for {DATA_EXPORT_TTL_DAYS} days so you can download it.</>,
           ]}
         />
@@ -92,7 +94,8 @@ export default function PrivacyPolicyPage() {
       <Section title="Why it is stored">
         <p>
           Only to run the app for you: signing you in, saving your workouts and weight, and showing your
-          progress, records and suggestions. Nothing is used for advertising or profiling.
+          progress, records and suggestions, and to keep it working: the error and slow-response records are
+          there to find and fix problems. Nothing is used for advertising or profiling.
         </p>
       </Section>
 
@@ -163,7 +166,8 @@ export default function PrivacyPolicyPage() {
       <Section title="Who can see your data">
         <p>
           You, and the administrators of this instance. Administrators can see your account details and activity (for
-          example, when you last trained) in order to run and support the service. They can&apos;t see your password.
+          example, when you last trained), and the error and slow-response records above, in order to run and support
+          the service. They can&apos;t see your password.
         </p>
       </Section>
 
@@ -171,7 +175,9 @@ export default function PrivacyPolicyPage() {
         <p>
           Your data is kept while your account exists, and deleted when you delete your account (next section). Used and
           expired sign-in codes and sessions stop working straight away, data exports are removed after{" "}
-          {DATA_EXPORT_TTL_DAYS} days, and AI request records are deleted after one year.
+          {DATA_EXPORT_TTL_DAYS} days, error and slow-response records are deleted after {REQUEST_LOG_RETENTION_DAYS} days, and
+          AI request records are deleted after one year. The server also keeps counts of how many requests it answered,
+          how fast and with what result, per kind of action; these hold nothing about who made them.
         </p>
         <p>
           Copies of the database kept as backups, in case of a failure, are deleted after at most {BACKUP_RETENTION_DAYS}{" "}
@@ -187,7 +193,9 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           On that date <strong>everything about you is deleted</strong>: your account and contact details, settings,
-          body weight and goals, plans, every workout and set, check-ins, notifications and sessions.
+          body weight and goals, plans, every workout and set, check-ins, notifications and sessions. Error and
+          slow-response records lose your account id and are deleted on their usual schedule, within{" "}
+          {REQUEST_LOG_RETENTION_DAYS} days.
         </p>
         <p>
           Before that, your training is added to <strong>anonymous totals</strong> that we keep to understand how the app is
