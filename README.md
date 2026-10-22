@@ -4,6 +4,25 @@ The Gym Ledger app for people who train: plan your week, log every set at the gy
 
 Part of Gym Ledger, alongside [`gym-ledger/api`](https://github.com/gym-ledger/api) (the API every app talks to) and [`gym-ledger/admin`](https://github.com/gym-ledger/admin) (where the exercise library and system plans are managed).
 
+## Screenshots
+
+<p align="center"><img src=".github/assets/demo.gif" width="300" alt="Gym Ledger on a phone: home, progress, muscle map, body weight and logging a set"></p>
+
+<table>
+  <tr>
+    <td><img src=".github/assets/home.png" width="220" alt="Home: this week's sessions, volume and streak, and the next workout"></td>
+    <td><img src=".github/assets/active-workout.png" width="220" alt="Active workout: set logger with the rest timer running"></td>
+    <td><img src=".github/assets/workout-complete.png" width="220" alt="Workout complete: volume ring and new personal records"></td>
+  </tr>
+  <tr>
+    <td><img src=".github/assets/progress.png" width="220" alt="Progress overview: total volume, latest PR and weekly volume"></td>
+    <td><img src=".github/assets/muscle-map.png" width="220" alt="Muscle map of recent training"></td>
+    <td><img src=".github/assets/body-weight.png" width="220" alt="Body weight goal with trend, plan line and projection"></td>
+  </tr>
+</table>
+
+The data shown belongs to a demo account.
+
 ## Features
 
 - **Workout logging built for the gym floor.** One exercise at a time, big numbers, a rest timer that fills as you rest and buzzes when it's done. Warm-up sets, drop sets, reps in reserve, effort and discomfort notes, and "last time" hints from your history.
@@ -25,8 +44,6 @@ Part of Gym Ledger, alongside [`gym-ledger/api`](https://github.com/gym-ledger/a
 | Animation | Framer Motion |
 | Offline | Hand-written service worker (`public/sw.js`) + local queues (`src/lib/offline`) |
 | Deployment | Docker (Next.js standalone output) |
-
-The visual language (tokens, type, components, screen patterns) is documented in [docs/DESIGN_SYSTEMS.md](docs/DESIGN_SYSTEMS.md).
 
 ## Run it
 

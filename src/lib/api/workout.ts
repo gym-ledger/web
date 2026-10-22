@@ -666,7 +666,7 @@ export interface PersonalRecord {
   /** weight + tool_weight for the record-setting set. */
   load: number;
   reps: number;
-  /** Estimated one-rep max (Epley) — see gym-ledger/api/algorithms/personal-records.md. */
+  /** Estimated one-rep max (Epley: load × (1 + reps / 30)). */
   e1rm: number;
 }
 

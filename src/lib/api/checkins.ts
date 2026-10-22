@@ -11,7 +11,7 @@ export type WeightPaceStatus =
   | "drifting_up"
   | "drifting_down";
 
-/** The numbers the API computed for the week — see gym-ledger/api/algorithms/weekly-checkin.md §3. */
+/** The numbers the API computed for the week. */
 export interface WeeklyCheckinStats {
   week_start: string;
   week_end: string;
@@ -66,7 +66,7 @@ export interface WeeklyCheckinContent {
   focus: { title: string; detail: string }[];
 }
 
-/** Why the week got no AI call — see gym-ledger/api/algorithms/weekly-checkin.md §2. */
+/** Why the week got no AI call. */
 export type CheckinSkipReason =
   | { kind: "weight"; logged_days: number; needed_days: number; long_inactive: boolean }
   | { kind: "workouts"; done: number; planned: number; needed: number; long_inactive: boolean }

@@ -14,7 +14,7 @@ const notifIcons: Record<string, React.ElementType> = {
   milestone: Target,
 };
 
-// There is no notifications backend yet (see DUMMY_UI_AUDIT.md #5) — the list
+// There is no notifications backend yet — the list
 // below is illustrative-only mock data. "Mark read" / "Mark all read" would
 // silently do nothing real (no persistence), so those actions are disabled
 // rather than wired to fake local state.

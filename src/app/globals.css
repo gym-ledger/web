@@ -10,7 +10,7 @@
   --font-sans: var(--font-barlow);
   --font-mono: var(--font-barlow-condensed);
   --font-heading: var(--font-barlow-condensed);
-  /* Condensed face for big numbers, headings and buttons — see docs/DESIGN_SYSTEMS.md */
+  /* Condensed face for big numbers, headings and buttons */
   --font-display: var(--font-barlow-condensed);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

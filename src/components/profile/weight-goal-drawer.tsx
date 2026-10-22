@@ -19,7 +19,7 @@ import {
 } from "@/lib/api/profile";
 import { cn } from "@/lib/utils";
 
-// Same limits the API flags as unsafe (algorithms/weekly-checkin.md §5).
+// Same limits the API flags as unsafe (users.weightGoal.utils.ts there).
 const UNSAFE_LOSS_PCT = 1.5;
 const UNSAFE_GAIN_PCT = 1.0;
 
