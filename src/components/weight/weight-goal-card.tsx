@@ -98,9 +98,14 @@ export function WeightGoalCard({ refreshKey }: { refreshKey?: number }) {
   const state = goalQuery.data;
   const goal = state?.goal ?? null;
 
-  const rangeKey = goal && state ? `body/goal-range/${goal.start_date}/${state.today}/${refreshKey ?? 0}` : null;
+  // Plain values, not `goal!.start_date` inside the fetcher: the React Compiler
+  // memoizes the fetcher on what it reads, and would read goal.start_date
+  // during render, while the goal is still loading (null).
+  const startDate = goal?.start_date ?? null;
+  const today = state?.today ?? null;
+  const rangeKey = startDate && today ? `body/goal-range/${startDate}/${today}/${refreshKey ?? 0}` : null;
   const rangeQuery = useCachedQuery<{ entries: WeightEntry[]; averages: WeightMovingAverage[] }>(rangeKey, async () => {
-    const data = await fetchWeightRange(goal!.start_date, state!.today);
+    const data = await fetchWeightRange(startDate!, today!);
     return { entries: data.weight_entries, averages: data.weight_moving_averages };
   });
 

@@ -185,7 +185,8 @@ export function ProgressPageClient({ defaultTab }: Props) {
             <div className="grid grid-cols-3 gap-3 border-y border-line">
               <StatCard
                 label="Total volume"
-                value={overview ? `${formatVolume(overview.total_volume)}${units}` : "—"}
+                value={overview ? formatVolume(overview.total_volume) : "—"}
+                sub={`${units} lifted`}
                 delay={0.05}
               />
               <StatCard
@@ -380,17 +381,17 @@ export function ProgressPageClient({ defaultTab }: Props) {
               {[
                 {
                   label: "Best week",
-                  value: overview ? `${formatVolume(overview.best_week_volume)}${units}` : "—",
+                  value: overview ? `${formatVolume(overview.best_week_volume)} ${units}` : "—",
                   sub: "Last 8 weeks",
                 },
                 {
                   label: "Avg/week",
-                  value: overview ? `${formatVolume(overview.avg_week_volume)}${units}` : "—",
+                  value: overview ? `${formatVolume(overview.avg_week_volume)} ${units}` : "—",
                   sub: "8-week avg",
                 },
                 {
                   label: "Total lifted",
-                  value: overview ? `${formatVolume(overview.total_volume)}${units}` : "—",
+                  value: overview ? `${formatVolume(overview.total_volume)} ${units}` : "—",
                   sub: "All time",
                 },
                 {

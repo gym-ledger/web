@@ -131,12 +131,13 @@ export function LineChart({
       {showLabels &&
         points
           .filter((_, i) => i % Math.ceil(data.length / 6) === 0 || i === data.length - 1)
-          .map((p, i) => (
+          .map((p, i, shown) => (
             <text
               key={i}
               x={p.x}
               y={height - 2}
-              textAnchor="middle"
+              // The end labels sit on the chart's edges; centred, half of them would be cut off.
+              textAnchor={i === 0 ? "start" : i === shown.length - 1 ? "end" : "middle"}
               fontSize="10"
               fontWeight="600"
               fill="var(--muted-foreground)"
@@ -160,7 +161,6 @@ export function BarChart({
   height = 80,
 }: BarChartProps) {
   const max = Math.max(...data.map((d) => d.value)) || 1;
-  const barWidth = 100 / data.length;
 
   return (
     <div className="flex items-end gap-1" style={{ height }}>
