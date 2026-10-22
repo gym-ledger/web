@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   Drawer,
@@ -28,12 +28,15 @@ function fmtDay(day: string) {
 }
 
 export function EditEntryDrawer({ entry, onClose, onSuccess }: EditEntryDrawerProps) {
-  const [weight, setWeight] = useState("");
+  const [weight, setWeight] = useState(entry ? String(entry.weight) : "");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  // Prefill with the entry's weight whenever a different entry is opened.
+  const [shownEntry, setShownEntry] = useState(entry);
+  if (entry !== shownEntry) {
+    setShownEntry(entry);
     if (entry) setWeight(String(entry.weight));
-  }, [entry]);
+  }
 
   async function handleSave() {
     if (!entry) return;

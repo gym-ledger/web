@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -10,7 +10,6 @@ import {
   Minus,
   SlidersHorizontal,
   X,
-  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
@@ -200,7 +199,8 @@ type ActiveView =
 
 export function BodyTab() {
   const [activeView, setActiveView] = useState<ActiveView>({ type: "default" });
-  const [savedViews, setSavedViews] = useState<WeightView[]>([]);
+  // Read once on mount; this screen only renders in the browser (see (main)/layout.tsx).
+  const [savedViews, setSavedViews] = useState<WeightView[]>(loadViews);
   const [showCustom, setShowCustom] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [customFrom, setCustomFrom] = useState(daysAgoISO(30));
@@ -216,10 +216,6 @@ export function BodyTab() {
     void weightQuery.refresh();
     setEntriesVersion((v) => v + 1);
   }
-
-  useEffect(() => {
-    setSavedViews(loadViews());
-  }, []);
 
   // Each view resolves to a date range; that range is the saved key, so
   // switching back to a view already seen shows instantly.

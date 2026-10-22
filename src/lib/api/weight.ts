@@ -52,7 +52,7 @@ export async function fetchWeightRange(from: string, to: string): Promise<Weight
   const seenEntryIds = new Set<string>();
   const seenAvgIds = new Set<string>();
 
-  let current = new Date(toDate);
+  const current = new Date(toDate);
   while (current >= fromDate) {
     const dateStr = current.toISOString().split("T")[0];
     const data = await fetchWeightForDate(dateStr);
