@@ -368,6 +368,8 @@ export interface WorkoutSet {
   is_warmup: boolean;
   effort: string | null;
   discomfort_notes: string | null;
+  /** 0 = felt nothing, 1–5. Null on drop sets, warmups and unrated sets. */
+  contraction?: number | null;
   created_at: string;
   parent_set_id: string | null;
   drop_order: number | null;
@@ -401,6 +403,8 @@ export interface LogSetPayload {
   effort?: string | null;
   discomfortNotes?: string | null;
   isWarmup?: boolean;
+  /** 0 = felt nothing, 1–5 = how well the muscle contracted. Main, non-warmup sets only. */
+  contraction?: number | null;
   alarmMessage?: string | null;
   dropSets?: DropSetFields[];
 }
@@ -418,6 +422,7 @@ export async function logWorkoutSet(
     effort: payload.effort,
     discomfort_notes: payload.discomfortNotes,
     is_warmup: payload.isWarmup,
+    contraction: payload.contraction,
     alarm_message: payload.alarmMessage,
     drop_sets: payload.dropSets?.map((d) => ({
       weight: d.weight,
@@ -438,6 +443,8 @@ export interface UpdateSetPayload {
   effort?: string | null;
   discomfortNotes?: string | null;
   isWarmup?: boolean;
+  /** 0 = felt nothing, 1–5 = how well the muscle contracted. Main, non-warmup sets only. */
+  contraction?: number | null;
 }
 
 export async function updateWorkoutSet(
@@ -452,6 +459,7 @@ export async function updateWorkoutSet(
     effort: payload.effort,
     discomfort_notes: payload.discomfortNotes,
     is_warmup: payload.isWarmup,
+    contraction: payload.contraction,
   });
 }
 
@@ -466,6 +474,8 @@ export interface BatchSetItem {
   effort?: string | null;
   discomfortNotes?: string | null;
   isWarmup?: boolean;
+  /** 0 = felt nothing, 1–5 = how well the muscle contracted. Main, non-warmup sets only. */
+  contraction?: number | null;
   alarmMessage?: string | null;
   dropSets?: DropSetFields[];
 }
@@ -489,6 +499,7 @@ export async function logWorkoutSetsBatch(
       effort: item.effort,
       discomfort_notes: item.discomfortNotes,
       is_warmup: item.isWarmup,
+      contraction: item.contraction,
       alarm_message: item.alarmMessage,
       drop_sets: item.dropSets?.map((d) => ({
         weight: d.weight,
@@ -515,6 +526,7 @@ export interface ExerciseHistorySet {
   rir: number | null;
   effort: string | null;
   discomfort_notes: string | null;
+  contraction?: number | null;
   alarm_message: string | null;
   /** Optional: responses from API versions before this field was added omit it. */
   is_warmup?: boolean;
@@ -591,6 +603,7 @@ export interface WorkoutSessionDetailSet {
   rir: number | null;
   effort: string | null;
   discomfort_notes: string | null;
+  contraction?: number | null;
   created_at: string;
   parent_set_id: string | null;
   drop_order: number | null;

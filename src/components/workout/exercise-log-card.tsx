@@ -11,7 +11,8 @@ import {
 } from "@/lib/api/workout";
 import { ExerciseHistoryPanel } from "./exercise-history-panel";
 import { PastSetPickerSheet, type PickableSet } from "./past-set-picker-sheet";
-import { groupSetsWithDropsets, formatElapsedSince, type GroupedSet } from "@/lib/workout-sets";
+import { ContractionPicker } from "./contraction-picker";
+import { groupSetsWithDropsets, formatElapsedSince, formatContraction, type GroupedSet } from "@/lib/workout-sets";
 import { useLongPress } from "@/lib/use-long-press";
 import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 import { cn } from "@/lib/utils";
@@ -125,15 +126,19 @@ function formatTargetLine(exercise: PlanExercise) {
 function SetNotes({
   effort,
   discomfort,
+  contraction,
   className,
 }: {
   effort: string | null;
   discomfort: string | null;
+  contraction?: number | null;
   className?: string;
 }) {
-  if (!effort && !discomfort) return null;
+  const contractionText = formatContraction(contraction);
+  if (!effort && !discomfort && !contractionText) return null;
   return (
     <div className={cn("flex flex-col gap-0.5", className)}>
+      {contractionText && <p className="text-[13px] text-muted-foreground">{contractionText}</p>}
       {effort && <p className="text-[13px] text-muted-foreground">{effort}</p>}
       {discomfort && (
         <p className="flex items-start gap-1.5 text-[13px] text-warning">
@@ -173,6 +178,8 @@ export function ExerciseLogCard({
   const [rir, setRir] = useState("");
   const [effort, setEffort] = useState("");
   const [discomfort, setDiscomfort] = useState("");
+  // 0–5, null = not rated. Covers the set and its drop sets; not sent for warmups.
+  const [contraction, setContraction] = useState<number | null>(null);
   const [alarm, setAlarm] = useState("");
   // Alarm input is rare (~once every 20-30 sets) — kept collapsed behind a
   // button so the everyday logging form isn't cluttered with it.
@@ -194,6 +201,7 @@ export function ExerciseLogCard({
   const [editEffort, setEditEffort] = useState("");
   const [editDiscomfort, setEditDiscomfort] = useState("");
   const [editIsWarmup, setEditIsWarmup] = useState(false);
+  const [editContraction, setEditContraction] = useState<number | null>(null);
   // Edits not yet confirmed by the server (still queued/offline) — reactive,
   // so rows update the moment the sync manager flushes them.
   const pendingSetUpdates = useWorkoutSetUpdateQueueStore((state) => state.queue);
@@ -216,6 +224,8 @@ export function ExerciseLogCard({
   const exerciseName = exercise.exercise?.name ?? "Exercise";
   const groupedSets = groupSetsWithDropsets(sets);
   const nextSetOrder = groupedSets.length + 1;
+  // Contraction is scored on main sets only — a drop set shares its parent's.
+  const editingMainSet = sets.some((s) => s.id === editingSetId && s.parent_set_id == null);
 
   // Mirrors optimisticIds into a ref so the mount-once subscription below
   // always sees the latest pending set — same pattern as RestTimer's
@@ -311,6 +321,7 @@ export function ExerciseLogCard({
     setEffort(s.effort ?? "");
     setDiscomfort(s.discomfort_notes ?? "");
     setIsWarmup(s.is_warmup ?? false);
+    setContraction(s.contraction ?? null);
     setAlarm(alarmMessage);
     setShowAlarmInput(!!alarmMessage);
     setDropSets(
@@ -348,7 +359,7 @@ export function ExerciseLogCard({
   }
 
   const hasInput = !!(
-    weight || toolWeight || reps || rir || effort || discomfort || alarm || isWarmup || dropSets.length > 0
+    weight || toolWeight || reps || rir || effort || discomfort || alarm || isWarmup || contraction != null || dropSets.length > 0
   );
 
   function handleClear() {
@@ -358,6 +369,7 @@ export function ExerciseLogCard({
     setRir("");
     setEffort("");
     setDiscomfort("");
+    setContraction(null);
     setAlarm("");
     setShowAlarmInput(false);
     setIsWarmup(false);
@@ -388,6 +400,7 @@ export function ExerciseLogCard({
     setEditEffort(set.effort ?? "");
     setEditDiscomfort(set.discomfort_notes ?? "");
     setEditIsWarmup(set.is_warmup);
+    setEditContraction(set.contraction ?? null);
   }
 
   function cancelEditSet() {
@@ -410,6 +423,7 @@ export function ExerciseLogCard({
       effort: editEffort.trim() || null,
       discomfortNotes: editDiscomfort.trim() || null,
       isWarmup: editIsWarmup,
+      contraction: editingMainSet && !editIsWarmup ? editContraction : null,
     };
     const setId = editingSetId;
 
@@ -430,6 +444,7 @@ export function ExerciseLogCard({
               effort: payload.effort ?? null,
               discomfort_notes: payload.discomfortNotes ?? null,
               is_warmup: payload.isWarmup ?? false,
+              contraction: payload.contraction ?? null,
             }
           : s,
       ),
@@ -477,6 +492,7 @@ export function ExerciseLogCard({
     const trimmedEffort = effort.trim() || null;
     const trimmedDiscomfort = discomfort.trim() || null;
     const trimmedAlarm = alarm.trim() || null;
+    const setContractionValue = isWarmup ? null : contraction;
 
     const optimisticSet: WorkoutSet = {
       id: clientId,
@@ -490,6 +506,7 @@ export function ExerciseLogCard({
       is_warmup: isWarmup,
       effort: trimmedEffort,
       discomfort_notes: trimmedDiscomfort,
+      contraction: setContractionValue,
       created_at: nowIso,
       parent_set_id: null,
       drop_order: null,
@@ -519,6 +536,7 @@ export function ExerciseLogCard({
     setRir("");
     setEffort("");
     setDiscomfort("");
+    setContraction(null);
     setAlarm("");
     setShowAlarmInput(false);
     setIsWarmup(false);
@@ -536,6 +554,7 @@ export function ExerciseLogCard({
         effort: trimmedEffort,
         discomfortNotes: trimmedDiscomfort,
         isWarmup,
+        contraction: setContractionValue,
         alarmMessage: trimmedAlarm,
         dropSets: parsedDropSets,
       },
@@ -638,6 +657,9 @@ export function ExerciseLogCard({
           <Flame className="size-3.5" />
           Warmup set
         </button>
+        {editingMainSet && !editIsWarmup && (
+          <ContractionPicker value={editContraction} onChange={setEditContraction} compact />
+        )}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -724,7 +746,12 @@ export function ExerciseLogCard({
                         </button>
                       )}
                     </div>
-                    <SetNotes effort={s.effort} discomfort={s.discomfort_notes} className="pl-[30px]" />
+                    <SetNotes
+                      effort={s.effort}
+                      discomfort={s.discomfort_notes}
+                      contraction={s.contraction}
+                      className="pl-[30px]"
+                    />
                   </>
                 )}
                 {drops.map((d) => {
@@ -877,6 +904,8 @@ export function ExerciseLogCard({
           <Flame className="size-4" />
           {isWarmup ? "Warmup set — on" : "Warmup set"}
         </button>
+
+        {!isWarmup && <ContractionPicker value={contraction} onChange={setContraction} />}
 
         <label className="flex flex-col gap-1.5">
           <span className="label-caps">Effort</span>

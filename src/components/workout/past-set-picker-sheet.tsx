@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import { groupSetsWithDropsets, formatWeightReps, type GroupedSet } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatWeightReps, formatContraction, type GroupedSet } from "@/lib/workout-sets";
 import type { ExerciseHistorySession, ExerciseHistorySet, WorkoutSet } from "@/lib/api/workout";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ function SetRow({
   const { main: s, drops } = group;
   const details = [
     s.rir != null ? `RIR ${s.rir}` : null,
+    formatContraction(s.contraction),
     drops.length > 0 ? `+${drops.length} drop${drops.length > 1 ? "s" : ""}` : null,
     s.effort,
   ].filter(Boolean);
