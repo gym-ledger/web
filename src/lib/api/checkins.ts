@@ -36,6 +36,15 @@ export interface WeeklyCheckinStats {
   muscles: {
     most_trained: { name: string; sets: number }[];
     below_usual: { name: string; sets: number; usual_sets: number }[];
+    /** Muscles whose rated sets felt weak (0–5 contraction). Absent on check-ins from before the field existed. */
+    low_contraction?: {
+      name: string;
+      avg_contraction: number;
+      rated_sets: number;
+      pattern: "single_exercise" | "all_exercises" | "some_exercises";
+      low_exercises: string[];
+      better_exercise: string | null;
+    }[];
   };
   weight: {
     weigh_ins: number;

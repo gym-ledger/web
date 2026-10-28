@@ -4,10 +4,10 @@
  * gym-ledger/api/src/config/constants.ts. Bump both together whenever either
  * page changes; every user is asked to accept again.
  */
-export const PRIVACY_POLICY_VERSION = "2026-10-23.1";
+export const PRIVACY_POLICY_VERSION = "2026-10-28.1";
 
 /** Shown as the "Last updated" line of both pages. */
-export const PRIVACY_POLICY_UPDATED = "23 October 2026";
+export const PRIVACY_POLICY_UPDATED = "28 October 2026";
 
 /**
  * Who runs this instance. Self-hosters set these at build time so the policy

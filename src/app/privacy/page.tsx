@@ -138,6 +138,7 @@ export default function PrivacyPolicyPage() {
             <>Training: sessions and training days done, how many were planned, average session length, working sets, how many sets you marked with discomfort, and total volume this week, last week and usually.</>,
             <>Up to 4 personal records (exercise name, weight, reps, estimated one-rep max and the previous best) and up to 4 stalled lifts (exercise name, best estimated one-rep max, sessions in the last 3 weeks).</>,
             <>Up to 4 most-trained muscles and up to 4 muscles trained less than usual, with set counts.</>,
+            <>Up to 4 muscles whose sets you rated as poorly felt (contraction score) over the last 3 weeks: the muscle, its average score and number of rated sets, and the names of the exercises involved.</>,
             <>Body weight as <strong>changes only</strong>: how many times and on how many days you weighed in, the change from last week and the weekly trend. Your actual body weight is not sent.</>,
             <>Your goal type (lose, maintain or gain), the pace you chose, weeks left, the weekly pace needed, the matching calorie guideline and whether you are on pace. Your target weight and goal date are not sent.</>,
           ]}
