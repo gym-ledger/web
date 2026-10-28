@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, History, Loader2 } from "lucide-react";
 import { fetchExerciseHistory, type ExerciseHistorySession } from "@/lib/api/workout";
-import { groupSetsWithDropsets, formatElapsedSince, formatWeightReps } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatElapsedSince, formatWeightReps, formatContraction } from "@/lib/workout-sets";
 import type { ExerciseHistoryCacheEntry } from "@/lib/workout/exercise-history-cache";
 
 interface ExerciseHistoryPanelProps {
@@ -120,6 +120,9 @@ export function ExerciseHistoryPanel({
                             {formatWeightReps(s.weight, s.tool_weight, s.reps)}
                             {s.rir != null && <span className="text-muted-foreground"> · RIR {s.rir}</span>}
                           </span>
+                          {s.contraction != null && (
+                            <p className="text-xs text-muted-foreground">{formatContraction(s.contraction)}</p>
+                          )}
                           {s.effort && <p className="text-xs text-muted-foreground">{s.effort}</p>}
                           {s.discomfort_notes && <p className="text-xs text-warning">{s.discomfort_notes}</p>}
                         </div>

@@ -59,3 +59,13 @@ export function formatElapsedSince(fromIso: string, toIso: string) {
   const s = totalSeconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/** How well the target muscle contracted on a set (0–5). One score covers a main set and its drop sets. */
+export const CONTRACTION_LABELS = ["Felt nothing", "Barely", "Weak", "Decent", "Strong", "Excellent"] as const;
+
+/** "Contraction 4/5 · Strong", or "Felt no contraction" for 0; null when unrated. */
+export function formatContraction(contraction: number | null | undefined) {
+  if (contraction == null) return null;
+  if (contraction === 0) return "Felt no contraction";
+  return `Contraction ${contraction}/5 · ${CONTRACTION_LABELS[contraction] ?? ""}`;
+}

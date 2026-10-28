@@ -16,7 +16,7 @@ import {
   type WorkoutSessionDetail,
   type WorkoutSet,
 } from "@/lib/api/workout";
-import { groupSetsWithDropsets } from "@/lib/workout-sets";
+import { groupSetsWithDropsets, formatContraction } from "@/lib/workout-sets";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 import { cn } from "@/lib/utils";
 
@@ -314,6 +314,9 @@ function DetailContent({ sessionId, justCompleted }: { sessionId: string; justCo
                         {formatTimeOfDay(s.created_at)}
                       </span>
                     </div>
+                    {s.contraction != null && (
+                      <p className="pl-[30px] text-[13px] text-muted-foreground">{formatContraction(s.contraction)}</p>
+                    )}
                     {s.effort && <p className="pl-[30px] text-[13px] text-muted-foreground">{s.effort}</p>}
                     {s.discomfort_notes && (
                       <p className="flex items-start gap-1.5 pl-[30px] text-[13px] text-warning">

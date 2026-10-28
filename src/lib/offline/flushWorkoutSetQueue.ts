@@ -80,6 +80,7 @@ async function flushChunk(pending: QueuedSet[]): Promise<boolean> {
       effort: q.payload.effort,
       discomfortNotes: q.payload.discomfortNotes,
       isWarmup: q.payload.isWarmup,
+      contraction: q.payload.contraction,
       alarmMessage: q.payload.alarmMessage,
       dropSets: q.payload.dropSets,
     }));
