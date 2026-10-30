@@ -90,7 +90,7 @@ src/
 
 ## Deployment
 
-See the [deployment guide](deployment/DEPLOY.md). On a server set up with the API's `deployment/ci/setup-server.sh`, every push to `main` deploys through GitHub Actions.
+See the [deployment guide](deployment/DEPLOY.md). On a server set up with the API's `deployment/ci/setup-server.sh`, every push to `main` deploys to production through GitHub Actions, and every push to `qa` to the QA server.
 
 ## Contributing and security
 
