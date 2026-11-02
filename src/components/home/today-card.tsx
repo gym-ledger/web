@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Play, ChevronRight, Moon, Plus, Check } from "lucide-react";
+import { Play, ChevronRight, Moon, Plus, Check, Pause } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,10 @@ import {
   fetchWorkoutSessions,
 } from "@/lib/api/workout";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { dayOffCategoryLabel } from "@/lib/api/days-off";
+import type { DashboardStats } from "@/lib/api/workout";
+
+type TodayDayOff = NonNullable<DashboardStats["week"][number]["day_off"]>;
 
 type CardState =
   | { status: "loading" }
@@ -134,7 +138,17 @@ async function loadTodayCard(): Promise<CardState> {
   };
 }
 
-export function TodayCard() {
+export function TodayCard({
+  dayOff = null,
+  onTakeDayOff,
+  onEditDayOff,
+}: {
+  /** Today's day off, from the dashboard stats. */
+  dayOff?: TodayDayOff | null;
+  /** Opens the day-off drawer for today; the button is hidden without it. */
+  onTakeDayOff?: () => void;
+  onEditDayOff?: () => void;
+} = {}) {
   // Keyed by date: a card saved yesterday ("Workout complete", "Rest day")
   // must not show today.
   const { data, loading, error } = useCachedQuery<CardState>(`home/today/${localDateKey()}`, loadTodayCard);
@@ -219,6 +233,43 @@ export function TodayCard() {
     );
   }
 
+  if (dayOff) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, delay: 0.05 }}
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="label-caps truncate text-warning">Day off · {state.programName}</span>
+            <span className="font-display text-[34px] leading-none font-bold">{dayOffCategoryLabel(dayOff.category)}</span>
+            {dayOff.note && <span className="text-sm break-words text-muted-foreground">{dayOff.note}</span>}
+            <span className="text-sm text-muted-foreground">
+              {dayOff.protects_streak
+                ? "Your streak is safe. Rest up."
+                : "This is past 10 days off in 30, so it doesn't protect your streak."}
+            </span>
+          </div>
+          <Pause className="size-7 shrink-0 text-warning" strokeWidth={2} aria-hidden />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {onEditDayOff && (
+            <Button variant="outline" size="lg" className="h-11 w-full rounded-xl" onClick={onEditDayOff}>
+              Change
+            </Button>
+          )}
+          <Link href="/workout/active" className={onEditDayOff ? "block" : "col-span-2 block"}>
+            <Button variant="outline" size="lg" className="h-11 w-full rounded-xl">
+              Train anyway
+            </Button>
+          </Link>
+        </div>
+      </motion.div>
+    );
+  }
+
   const shown = state.exercises.slice(0, 3);
   const remaining = state.exercises.length - shown.length;
 
@@ -260,6 +311,15 @@ export function TodayCard() {
           Start workout
         </Button>
       </Link>
+      {onTakeDayOff && (
+        <button
+          type="button"
+          onClick={onTakeDayOff}
+          className="-mt-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Take a day off
+        </button>
+      )}
     </motion.div>
   );
 }

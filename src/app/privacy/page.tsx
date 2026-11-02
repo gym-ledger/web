@@ -82,7 +82,7 @@ export default function PrivacyPolicyPage() {
           items={[
             <><strong>Account:</strong> your email address or phone number, your first and last name if you add them, and your password if you set one (stored only as a one-way hash).</>,
             <><strong>Sign-in:</strong> one-time sign-in codes (hashed and short-lived) and your active sessions (a hashed token, when it was created and last used). Your IP address isn&apos;t saved to your account, though the server&apos;s request logs record IP addresses for security and troubleshooting.</>,
-            <><strong>Training:</strong> your plans, workouts and every set you log (weight, reps, effort, warm-up and drop sets, and any discomfort notes you write), plus the muscle-training numbers the app works out from them.</>,
+            <><strong>Training:</strong> your plans, workouts and every set you log (weight, reps, effort, warm-up and drop sets, and any discomfort notes you write), the days you mark as a day off (the reason and any note you add), plus the muscle-training numbers the app works out from them.</>,
             <><strong>Body:</strong> body-weight entries, height, units, time zone, body-weight goals and their history, and your onboarding answers (training goal, experience, days per week, equipment).</>,
             <><strong>AI check-ins</strong>, only if you turn them on: each week&apos;s summary numbers and the note written from them (see below).</>,
             <><strong>Errors and slow responses:</strong> when a request from your app to the server fails or takes longer than half a second, a record of it: when it happened, which action and address it was (the address can include the id of a workout, set or plan, never what you typed), the result code, how long it took, the error, and your account id. Nothing you sent, no IP address.</>,
@@ -135,7 +135,7 @@ export default function PrivacyPolicyPage() {
         <List
           items={[
             <>Your weight unit (kg or lb).</>,
-            <>Training: sessions and training days done, how many were planned, average session length, working sets, how many sets you marked with discomfort, and total volume this week, last week and usually.</>,
+            <>Training: sessions and training days done, how many were planned, average session length, working sets, how many sets you marked with discomfort, total volume this week, last week and usually, and how many planned days you took off and for which reason (for example sick or travel; your note is not sent).</>,
             <>Up to 4 personal records (exercise name, weight, reps, estimated one-rep max and the previous best) and up to 4 stalled lifts (exercise name, best estimated one-rep max, sessions in the last 3 weeks).</>,
             <>Up to 4 most-trained muscles and up to 4 muscles trained less than usual, with set counts.</>,
             <>Up to 4 muscles whose sets you rated as poorly felt (contraction score) over the last 3 weeks: the muscle, its average score and number of rated sets, and the names of the exercises involved.</>,

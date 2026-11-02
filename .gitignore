@@ -42,6 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 CLAUDE.md
+AGENTS.md
 docs/
 # Internal notes, not published
 SLOW_NETWORK_PWA_AUDIT.md
