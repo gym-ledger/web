@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { Bell, Check, ChevronRight, Moon, User } from "lucide-react";
+import { Bell, Check, ChevronRight, Moon, Pause, User } from "lucide-react";
 import { motion } from "framer-motion";
 import { TodayCard } from "@/components/home/today-card";
 import { OngoingWorkoutBanner } from "@/components/home/ongoing-workout-banner";
@@ -9,6 +10,8 @@ import { HomeworkWidget } from "@/components/home/homework-widget";
 import { StatsRow } from "@/components/home/stats-row";
 import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
 import { WeeklyCheckinCard } from "@/components/home/weekly-checkin-card";
+import { DayOffDrawer, type DayOffDrawerEditing } from "@/components/home/day-off-drawer";
+import { DAY_OFF_BACKFILL_DAYS, addDaysIso, localDateIso } from "@/lib/api/days-off";
 import {
   fetchDashboardStats,
   fetchProgressOverview,
@@ -44,7 +47,16 @@ function SectionTitle({ children, action }: { children: React.ReactNode; action?
 }
 
 export default function HomePage() {
-  const stats = useCachedQuery<DashboardStats>("home/stats", fetchDashboardStats).data ?? null;
+  const statsQuery = useCachedQuery<DashboardStats>("home/stats", fetchDashboardStats);
+  const stats = statsQuery.data ?? null;
+  // Kept after closing so the drawer can animate out with its content.
+  const [dayOffTarget, setDayOffTarget] = useState<{ date: string; editing: DayOffDrawerEditing | null }>({
+    date: localDateIso(),
+    editing: null,
+  });
+  const [dayOffOpen, setDayOffOpen] = useState(false);
+  // Bumped on every open so the drawer's form starts fresh.
+  const [dayOffSeq, setDayOffSeq] = useState(0);
   // Last item of the series is the current week; the one before it is last week.
   const lastWeekVolume =
     useCachedQuery<number>("home/last-week-volume", () =>
@@ -58,8 +70,22 @@ export default function HomePage() {
   useNotificationsChanged(() => void unreadQuery.refresh());
 
   const units = stats?.weight_units ?? "kg";
-  const required = stats?.week.filter((d) => d.required) ?? [];
+  // A planned day taken off isn't a session owed this week.
+  const required = stats?.week.filter((d) => d.required && (d.trained || !d.day_off)) ?? [];
   const requiredTrained = required.filter((d) => d.trained).length;
+  const daysOffThisWeek = stats?.week.filter((d) => d.required && !d.trained && d.day_off).length ?? 0;
+
+  const earliestDayOff = addDaysIso(localDateIso(), -DAY_OFF_BACKFILL_DAYS);
+  const todayEntry = stats?.week.find((d) => isTodayIso(d.date)) ?? null;
+  const canMarkDay = (d: DashboardStats["week"][number]) => d.required && !d.trained && d.date >= earliestDayOff;
+  const openDayOff = (d: DashboardStats["week"][number]) => {
+    setDayOffTarget({
+      date: d.date,
+      editing: d.day_off ? { date: d.date, category: d.day_off.category, note: d.day_off.note } : null,
+    });
+    setDayOffSeq((n) => n + 1);
+    setDayOffOpen(true);
+  };
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-5 pb-4">
@@ -113,7 +139,11 @@ export default function HomePage() {
 
       <OngoingWorkoutBanner />
 
-      <TodayCard />
+      <TodayCard
+        dayOff={todayEntry && !todayEntry.trained ? todayEntry.day_off : null}
+        onTakeDayOff={todayEntry && canMarkDay(todayEntry) && !todayEntry.day_off ? () => openDayOff(todayEntry) : undefined}
+        onEditDayOff={todayEntry?.day_off ? () => openDayOff(todayEntry) : undefined}
+      />
 
       <HomeworkWidget />
 
@@ -125,35 +155,59 @@ export default function HomePage() {
             action={
               <span className="text-xs text-muted-foreground">
                 {requiredTrained}/{required.length} planned days
+                {daysOffThisWeek > 0 && ` · ${daysOffThisWeek} off`}
               </span>
             }
           >
             This week
           </SectionTitle>
           <div className="grid grid-cols-7 gap-2">
-            {stats.week.map(({ date, trained, required: isRequired }, i) => {
+            {stats.week.map((day, i) => {
+              const { date, trained, required: isRequired, day_off: dayOff } = day;
               const today = isTodayIso(date);
+              const off = !trained && dayOff;
+              const tappable = canMarkDay(day);
+              const cellClass = cn(
+                "flex h-11 w-full items-center justify-center rounded-md",
+                trained
+                  ? "bg-primary text-primary-foreground"
+                  : off
+                    ? dayOff.protects_streak
+                      ? "border border-warning-line bg-warning-surface text-warning"
+                      : "border border-input bg-secondary text-muted-foreground"
+                    : isRequired
+                      ? "bg-secondary text-muted-foreground"
+                      : "text-subtle",
+                today && !trained && !off && "border-[1.5px] border-dashed border-primary",
+                tappable && "transition-transform active:scale-95",
+              );
+              const content = trained ? (
+                <Check className="size-4" strokeWidth={3} aria-label="Trained" />
+              ) : off ? (
+                <Pause
+                  className="size-3.5"
+                  strokeWidth={2.4}
+                  aria-label={dayOff.protects_streak ? "Day off" : "Day off, past the limit"}
+                />
+              ) : !isRequired ? (
+                <Moon className="size-3.5" aria-label="Rest day" />
+              ) : (
+                <span className="sr-only">Planned, not trained yet</span>
+              );
               return (
                 <div key={date} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={cn(
-                      "flex h-11 w-full items-center justify-center rounded-md",
-                      trained
-                        ? "bg-primary text-primary-foreground"
-                        : isRequired
-                          ? "bg-secondary text-muted-foreground"
-                          : "text-subtle",
-                      today && !trained && "border-[1.5px] border-dashed border-primary",
-                    )}
-                  >
-                    {trained ? (
-                      <Check className="size-4" strokeWidth={3} aria-label="Trained" />
-                    ) : !isRequired ? (
-                      <Moon className="size-3.5" aria-label="Rest day" />
-                    ) : (
-                      <span className="sr-only">Planned, not trained yet</span>
-                    )}
-                  </div>
+                  {tappable ? (
+                    <button
+                      type="button"
+                      onClick={() => openDayOff(day)}
+                      aria-label={`${off ? "Change day off" : "Take a day off"}, ${new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}`}
+                      className={cellClass}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div className={cellClass}>{content}</div>
+                  )}
                   <span
                     className={cn(
                       "text-[11px] font-semibold",
@@ -166,8 +220,18 @@ export default function HomePage() {
               );
             })}
           </div>
+          <p className="text-[11px] text-subtle">Tap a planned day to take it off.</p>
         </section>
       )}
+
+      <DayOffDrawer
+        key={dayOffSeq}
+        open={dayOffOpen}
+        initialDate={dayOffTarget.date}
+        editing={dayOffTarget.editing}
+        onClose={() => setDayOffOpen(false)}
+        onSaved={() => void statsQuery.refresh()}
+      />
 
       <section className="flex flex-col gap-2.5">
         <SectionTitle>Body weight</SectionTitle>
