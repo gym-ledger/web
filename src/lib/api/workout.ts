@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import type { DayOffCategory } from "@/lib/api/days-off";
 import { writeCachedApiResponse } from "@/lib/offline/apiResponseCache";
 import { setCachedQueryData } from "@/lib/offline/useCachedQuery";
 
@@ -660,7 +661,16 @@ export async function discardAlarm(alarmId: string): Promise<WorkoutSetAlarm> {
 export interface DashboardStats {
   current_streak: number;
   /** Monday-Sunday of the current calendar week, in the user's timezone. */
-  week: { date: string; trained: boolean; required: boolean }[];
+  week: {
+    date: string;
+    trained: boolean;
+    required: boolean;
+    /**
+     * Set on a planned, untrained day the user took off. `protects_streak` is
+     * false past the 10-days-off-in-30 allowance.
+     */
+    day_off: { category: DayOffCategory; note: string | null; protects_streak: boolean } | null;
+  }[];
   weekly_volume: number;
   weight_units: "kg" | "lbs";
 }
