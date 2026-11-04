@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { PolicyUpdatedDate } from "@/components/legal/policy-updated-date";
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
   OPERATOR_NAME,
   PRIVACY_CONTACT_EMAIL,
-  PRIVACY_POLICY_UPDATED,
   TERMS_GOVERNING_LAW,
 } from "@/lib/privacy-policy";
 
@@ -14,8 +14,14 @@ export const metadata: Metadata = {
   description: "The rules for using this app, what it is and isn't, and who is responsible for what.",
 };
 
-// Public: readable before signing in. Accepted together with the privacy
-// policy; bump PRIVACY_POLICY_VERSION when this text changes.
+// POLICY TEXT. Users accept this page and /privacy together, by VERSION. When
+// you change what either says, add a version in the API's
+// src/config/policyVersions.ts (read its header) and run
+// `npm run policy:lock -- <version>` here; CI fails until you do.
+// Only material versions ask users to accept again, but err on the side of
+// asking again (reconsent "everyone") whenever you add a version.
+//
+// Public: readable before signing in.
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -59,7 +65,7 @@ export default function TermsPage() {
 
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-[32px] leading-none font-bold">Terms of use</h1>
-        <p className="text-[13px] text-muted-foreground">Last updated {PRIVACY_POLICY_UPDATED}</p>
+        <PolicyUpdatedDate />
         <p className="text-[15px] leading-relaxed text-muted-foreground">
           This copy of the app is run by <strong className="text-foreground">{OPERATOR_NAME}</strong> (&quot;we&quot;). By
           creating an account or using the app you agree to these terms and to the{" "}
@@ -140,8 +146,9 @@ export default function TermsPage() {
 
       <Section title="Changes">
         <p>
-          If these terms change, the date at the top changes too, and the app asks you to read and accept them again
-          before you carry on.
+          If these terms change, the date at the top changes too. For an important change the app asks you to read and
+          accept them again before you carry on; smaller changes, such as clearer wording, show a notice in the app
+          instead.
         </p>
       </Section>
 

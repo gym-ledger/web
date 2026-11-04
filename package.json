@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "policy:check": "node scripts/policy-lock.mjs check",
+    "policy:lock": "node scripts/policy-lock.mjs write"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.11",

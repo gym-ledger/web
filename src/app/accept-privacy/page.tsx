@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/auth/authStore";
 import { postLoginPath } from "@/auth/postLoginPath";
 import { ApiError } from "@/lib/api-client";
-import { acceptPrivacyPolicy } from "@/lib/api/profile";
-import { PRIVACY_POLICY_UPDATED, PRIVACY_POLICY_VERSION } from "@/lib/privacy-policy";
+import { acceptPrivacyPolicy, fetchProfile, type UserProfile } from "@/lib/api/profile";
+import { formatPolicyDate } from "@/lib/api/legal";
 
 const SUMMARY = [
   "You must be 16 or older. The app's numbers and notes are general information, not medical advice.",
@@ -22,8 +22,10 @@ const SUMMARY = [
 ];
 
 /**
- * Shown after sign-in (new accounts, and existing ones whenever the terms or
- * the policy change) before anything else in the app.
+ * Shown after sign-in before anything else in the app: for new accounts, and
+ * for existing ones when a material terms/privacy version applies to them
+ * (the API decides; see src/config/policyVersions.ts there). Returning users
+ * see what changed since the version they accepted.
  */
 export default function AcceptPrivacyPage() {
   const router = useRouter();
@@ -32,18 +34,38 @@ export default function AcceptPrivacyPage() {
   const setUser = useAuthStore((s) => s.setUser);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
+  // The version to accept and what changed come from the API.
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     if (_hasHydrated && status === "unauthenticated") router.replace("/login");
   }, [_hasHydrated, status, router]);
 
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let cancelled = false;
+    fetchProfile()
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
+
   if (!_hasHydrated || status !== "authenticated") return null;
 
+  const changes = profile?.privacy_policy_update?.changes ?? [];
+
   async function handleAccept() {
-    if (!agreed || saving) return;
+    if (!agreed || saving || !profile) return;
     setSaving(true);
     try {
-      const user = await acceptPrivacyPolicy(PRIVACY_POLICY_VERSION);
+      const user = await acceptPrivacyPolicy(profile.current_privacy_policy_version, "prompt");
       const next = {
         id: user.id,
         onboarded_at: user.onboarded_at,
@@ -67,11 +89,32 @@ export default function AcceptPrivacyPage() {
       <div className="flex flex-col gap-2">
         <h1 className="font-display text-[32px] leading-none font-bold">Terms &amp; privacy</h1>
         <p className="text-[15px] text-muted-foreground">
-          Please read the terms of use and the privacy policy before you start. Updated {PRIVACY_POLICY_UPDATED}.
+          {changes.length > 0
+            ? "The terms of use and privacy policy have changed. Please read what's new and accept to carry on."
+            : "Please read the terms of use and the privacy policy before you start."}
+          {profile?.privacy_policy_update && ` Updated ${formatPolicyDate(profile.privacy_policy_update.effective_date)}.`}
         </p>
+        {loadFailed && (
+          <p className="text-sm text-destructive">Couldn&apos;t load the latest version. Check your connection and reload.</p>
+        )}
       </div>
 
-      <ul className="mt-6 flex flex-col">
+      {changes.length > 0 && (
+        <section className="mt-6 flex flex-col gap-2">
+          <h2 className="label-caps">What changed</h2>
+          <ul className="flex flex-col">
+            {changes.map((c) => (
+              <li key={c.version} className="border-b border-line py-3 text-[15px] leading-snug">
+                {c.summary}
+                <span className="block text-[13px] text-subtle">{formatPolicyDate(c.effective_date)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {changes.length > 0 && <h2 className="label-caps mt-6">In short</h2>}
+      <ul className={changes.length > 0 ? "mt-2 flex flex-col" : "mt-6 flex flex-col"}>
         {SUMMARY.map((line) => (
           <li key={line} className="border-b border-line py-3 text-[15px] leading-snug">
             {line}
@@ -96,7 +139,7 @@ export default function AcceptPrivacyPage() {
           />
           <span>I have read and accept the terms of use and the privacy policy.</span>
         </label>
-        <Button size="xl" variant="light" className="w-full" disabled={!agreed || saving} onClick={handleAccept}>
+        <Button size="xl" variant="light" className="w-full" disabled={!agreed || saving || !profile} onClick={handleAccept}>
           {saving && <Loader2 className="animate-spin" />}
           Accept and continue
         </Button>

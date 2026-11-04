@@ -1,13 +1,12 @@
 /**
- * Version of the terms of use (/terms) and privacy policy (/privacy), which
- * users accept together. Must equal PRIVACY_POLICY_VERSION in
- * gym-ledger/api/src/config/constants.ts. Bump both together whenever either
- * page changes; every user is asked to accept again.
+ * The terms of use (/terms) and privacy policy (/privacy) are accepted
+ * together. Their VERSION is not kept here: the API defines it in
+ * gym-ledger/api src/config/policyVersions.ts (read that file's header before
+ * changing either page). Only material versions ask users to accept again,
+ * but err on the side of asking again whenever you add a version.
+ * After changing either page, run `npm run policy:lock -- <new version>`;
+ * CI fails while the text and policy.lock.json disagree.
  */
-export const PRIVACY_POLICY_VERSION = "2026-11-02.1";
-
-/** Shown as the "Last updated" line of both pages. */
-export const PRIVACY_POLICY_UPDATED = "2 November 2026";
 
 /**
  * Who runs this instance. Self-hosters set these at build time so the policy

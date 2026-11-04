@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { PolicyUpdatedDate } from "@/components/legal/policy-updated-date";
 import {
   ACCOUNT_DELETION_GRACE_DAYS,
   BACKUP_RETENTION_DAYS,
@@ -9,7 +10,6 @@ import {
   PRIVACY_AI_SECTION_ID,
   PRIVACY_CONTACT_EMAIL,
   PRIVACY_DELETION_SECTION_ID,
-  PRIVACY_POLICY_UPDATED,
   REQUEST_LOG_RETENTION_DAYS,
 } from "@/lib/privacy-policy";
 
@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   description: "What this app stores about you, who it is shared with, and your choices.",
 };
 
+// POLICY TEXT. Users accept this page and /terms together, by VERSION. When
+// you change what either says, add a version in the API's
+// src/config/policyVersions.ts (read its header) and run
+// `npm run policy:lock -- <version>` here; CI fails until you do.
+// Only material versions ask users to accept again, but err on the side of
+// asking again (reconsent "everyone") whenever you add a version.
+//
 // Public: readable before signing in, and linked from sign-up and the AI
 // consent sheet. Keep every statement here true to the code — in particular
 // the AI section must match toModelInput() in the API's check-in service.
@@ -64,7 +71,7 @@ export default function PrivacyPolicyPage() {
 
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-[32px] leading-none font-bold">Privacy policy</h1>
-        <p className="text-[13px] text-muted-foreground">Last updated {PRIVACY_POLICY_UPDATED}</p>
+        <PolicyUpdatedDate />
         <p className="text-[15px] leading-relaxed text-muted-foreground">
           This app is free, open-source software. Anyone can run their own copy, so the person or group
           responsible for your data is whoever runs the copy you signed up to: here, <strong className="text-foreground">{OPERATOR_NAME}</strong>.
@@ -80,7 +87,7 @@ export default function PrivacyPolicyPage() {
       <Section title="What is stored">
         <List
           items={[
-            <><strong>Account:</strong> your email address or phone number, your first and last name if you add them, and your password if you set one (stored only as a one-way hash).</>,
+            <><strong>Account:</strong> your email address or phone number, your first and last name if you add them, and your password if you set one (stored only as a one-way hash). Also which version of the terms and this policy you accepted and when, and when you turned AI check-ins on or off, kept as a history.</>,
             <><strong>Sign-in:</strong> one-time sign-in codes (hashed and short-lived) and your active sessions (a hashed token, when it was created and last used). Your IP address isn&apos;t saved to your account, though the server&apos;s request logs record IP addresses for security and troubleshooting.</>,
             <><strong>Training:</strong> your plans, workouts and every set you log (weight, reps, effort, warm-up and drop sets, and any discomfort notes you write), the days you mark as a day off (the reason and any note you add), plus the muscle-training numbers the app works out from them.</>,
             <><strong>Body:</strong> body-weight entries, height, units, time zone, body-weight goals and their history, and your onboarding answers (training goal, experience, days per week, equipment).</>,
@@ -224,8 +231,10 @@ export default function PrivacyPolicyPage() {
 
       <Section title="Changes">
         <p>
-          If this policy changes, the date at the top changes too, and the app asks you to read and accept the new
-          version before you carry on.
+          If this policy changes, the date at the top changes too. For an important change (new data collected, a new
+          purpose or a new company receiving data, or your rights changing) the app asks you to read and accept the new
+          version before you carry on; if it only affects AI check-ins, only people who use them are asked. Smaller
+          changes, such as clearer wording, show a notice in the app instead.
         </p>
       </Section>
 

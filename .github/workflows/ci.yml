@@ -30,6 +30,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Terms/privacy text changed without a recorded version? See scripts/policy-lock.mjs.
+      - name: Policy text is versioned
+        run: npm run policy:check
+
       - name: Typecheck
         run: npx tsc --noEmit
 

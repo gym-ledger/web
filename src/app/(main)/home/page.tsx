@@ -11,6 +11,7 @@ import { StatsRow } from "@/components/home/stats-row";
 import { WeightHomeWidget } from "@/components/weight/weight-home-widget";
 import { WeeklyCheckinCard } from "@/components/home/weekly-checkin-card";
 import { DayOffDrawer, type DayOffDrawerEditing } from "@/components/home/day-off-drawer";
+import { PolicyUpdateNotice } from "@/components/home/policy-update-notice";
 import { DAY_OFF_BACKFILL_DAYS, addDaysIso, localDateIso } from "@/lib/api/days-off";
 import {
   fetchDashboardStats,
@@ -136,6 +137,8 @@ export default function HomePage() {
           ))}
         </div>
       )}
+
+      <PolicyUpdateNotice />
 
       <OngoingWorkoutBanner />
 
