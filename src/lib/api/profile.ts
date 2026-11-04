@@ -11,9 +11,21 @@ export interface UserProfile {
   has_password: boolean;
   /** Set once the user finishes or skips onboarding; null sends them to it. */
   onboarded_at: string | null;
-  /** False until the user accepts the current privacy policy; the app asks before anything else. */
+  /**
+   * False until the user has accepted every material policy version that
+   * applies to them; the app asks before anything else.
+   */
   privacy_policy_accepted: boolean;
   current_privacy_policy_version: string;
+  /**
+   * Set when a newer terms/privacy version exists than the one they accepted.
+   * With privacy_policy_accepted true it is a non-material update: a notice.
+   */
+  privacy_policy_update: {
+    version: string;
+    effective_date: string;
+    changes: { version: string; effective_date: string; summary: string }[];
+  } | null;
   /** AI weekly check-ins are opt-in. */
   ai_checkins_enabled: boolean;
   /** Set while the account is scheduled for deletion: the date it will be deleted. */
@@ -81,14 +93,24 @@ export async function skipOnboarding(): Promise<UserProfile> {
   return apiClient.post<UserProfile>("/user/profile/onboarding/skip");
 }
 
-/** `version` is the policy the user was shown; the API refuses an outdated one (409). */
-export async function acceptPrivacyPolicy(version: string): Promise<UserProfile> {
-  return apiClient.post<UserProfile>("/user/profile/privacy-policy/accept", { version });
+/**
+ * `version` is the policy the user was shown; the API refuses an outdated one (409).
+ * `source`: "prompt" from the accept screen, "notice" from dismissing a "policy updated" notice.
+ */
+export async function acceptPrivacyPolicy(version: string, source: "prompt" | "notice" = "prompt"): Promise<UserProfile> {
+  return apiClient.post<UserProfile>("/user/profile/privacy-policy/accept", { version, source });
 }
 
-/** Turning on needs `consent: true` from the AI consent sheet. */
-export async function setAiCheckins(enabled: boolean, consent = false): Promise<UserProfile> {
-  return apiClient.put<UserProfile>("/user/profile/ai-checkins", { enabled, consent });
+/**
+ * Turning on needs `consent: true` from the AI consent sheet. `policyVersion`
+ * (the current one) also accepts the current privacy policy, as the sheet says.
+ */
+export async function setAiCheckins(enabled: boolean, consent = false, policyVersion?: string): Promise<UserProfile> {
+  return apiClient.put<UserProfile>("/user/profile/ai-checkins", {
+    enabled,
+    consent,
+    ...(policyVersion && { policy_version: policyVersion }),
+  });
 }
 
 // ---------------------------------------------------------------------------

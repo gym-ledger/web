@@ -9,12 +9,16 @@ import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api-client";
 import { setAiCheckins, type UserProfile } from "@/lib/api/profile";
 import { PRIVACY_AI_SECTION_ID } from "@/lib/privacy-policy";
+import { fetchPolicyInfo, type PolicyInfo } from "@/lib/api/legal";
+import { useCachedQuery } from "@/lib/offline/useCachedQuery";
 
 // Keep in sync with the AI section of /privacy and toModelInput() in the API.
 const SENT = [
   "Last week's session, set and volume counts",
   "Up to 4 PRs and stalled lifts (exercise name, weight, reps)",
   "Muscles you trained most and least, as set counts",
+  "Muscles whose sets you rated as poorly felt, and those exercises' names",
+  "How many planned days you took off and why (sick, travel, ...), never your note",
   "Body-weight change and weekly trend — not your actual weight",
   "Your goal type, pace and whether you're on track",
 ];
@@ -34,6 +38,9 @@ export function AiCheckinsConsentDrawer({
 }) {
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Ticking the box also accepts the current policy (the label says so), so a
+  // user behind on it doesn't hit "accept the policy first".
+  const policyVersion = useCachedQuery<PolicyInfo>("legal/policy", fetchPolicyInfo).data?.current.version;
 
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
@@ -45,7 +52,7 @@ export function AiCheckinsConsentDrawer({
     if (!agreed || saving) return;
     setSaving(true);
     try {
-      onEnabled(await setAiCheckins(true, true));
+      onEnabled(await setAiCheckins(true, true, policyVersion));
       toast.success("AI check-ins turned on");
       onClose();
     } catch (err) {
@@ -93,7 +100,7 @@ export function AiCheckinsConsentDrawer({
               onChange={(e) => setAgreed(e.target.checked)}
               className="mt-0.5 size-5 shrink-0 accent-primary"
             />
-            <span>I understand what is sent and agree to it.</span>
+            <span>I understand what is sent and agree to it, and to the current privacy policy.</span>
           </label>
         </div>
 

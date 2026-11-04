@@ -1,0 +1,8 @@
+{
+  "version": "2026-11-02.2",
+  "sha256": "eca8f88ef2cf6690baef31a11f188c9bb0626c1e8b7f6f5acf0121587ed0da34",
+  "files": [
+    "src/app/terms/page.tsx",
+    "src/app/privacy/page.tsx"
+  ]
+}
