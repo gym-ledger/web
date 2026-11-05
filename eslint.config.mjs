@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Archived UI, kept for reference only (see src/archive/README.md).
     "src/archive/**",
+    // Capacitor native projects: generated code and copies of the built
+    // bundle (android/app/src/main/assets/public), not source.
+    "android/**",
+    "ios/**",
   ]),
 ]);
 
