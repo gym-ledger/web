@@ -12,6 +12,7 @@ import {
   fetchWorkoutSessions,
 } from "@/lib/api/workout";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { workoutSessionHref } from "@/lib/routes";
 import { dayOffCategoryLabel } from "@/lib/api/days-off";
 import type { DashboardStats } from "@/lib/api/workout";
 
@@ -205,7 +206,7 @@ export function TodayCard({
 
   if (state.status === "completed") {
     return (
-      <Link href={`/workout/history/${state.sessionId}`} className="block">
+      <Link href={workoutSessionHref(state.sessionId)} className="block">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

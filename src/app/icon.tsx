@@ -2,6 +2,8 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
+// Same image for every request; also lets the native static export include it.
+export const dynamic = "force-static";
 
 export default function Icon() {
   return new ImageResponse(

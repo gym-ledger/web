@@ -20,6 +20,7 @@ import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
 import { useWorkoutSetUpdateQueueStore } from "@/lib/offline/workoutSetUpdateQueue";
 import { flushWorkoutSetUpdateQueue } from "@/lib/offline/flushWorkoutSetUpdateQueue";
+import { hapticTap } from "@/lib/platform/native";
 
 const MAX_DROP_SETS = 10;
 
@@ -561,6 +562,7 @@ export function ExerciseLogCard({
       createdAt: nowIso,
     });
     flushWorkoutSetQueue();
+    void hapticTap().catch(() => {}); // native app only
 
     if (trimmedAlarm) {
       toast.warning("Set logged — flagged on your dashboard as homework.");

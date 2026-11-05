@@ -8,6 +8,13 @@ import {
   normalizeExpiresAt,
 } from "./authConstants";
 import type { AuthBroadcastEvent } from "./authTypes";
+import {
+  clientPlatformHeaders,
+  isNativeBuild,
+  readRefreshToken,
+  removeRefreshToken,
+  writeRefreshToken,
+} from "@/lib/platform";
 
 /**
  * The refresh couldn't reach a working server (offline, timeout, 5xx). The
@@ -83,13 +90,26 @@ async function doRefresh(): Promise<string> {
     throw new Error("No session");
   }
 
+  // Web: the refresh token is the httpOnly cookie the browser attaches itself.
+  // Native: it's in secure storage and goes in the Authorization header; the
+  // API then answers with the rotated token in the body and never a cookie.
+  let nativeRefreshToken: string | null = null;
+  if (isNativeBuild) {
+    nativeRefreshToken = await readRefreshToken();
+    if (!nativeRefreshToken) {
+      performLogout();
+      throw new Error("No session");
+    }
+  }
+
   let res: Response;
   try {
-    // The refresh token is the httpOnly cookie the browser attaches itself;
-    // the API rotates it in the same response.
     res = await fetch(`${API_BASE}${REFRESH_ENDPOINT}`, {
       method: "PUT",
       credentials: "include",
+      headers: nativeRefreshToken
+        ? { ...clientPlatformHeaders(), Authorization: `Refresh ${nativeRefreshToken}` }
+        : undefined,
     });
   } catch {
     throw new TransientRefreshError("Network error during token refresh");
@@ -113,7 +133,7 @@ async function doRefresh(): Promise<string> {
 
   type RefreshResponseBody = {
     success: boolean;
-    data: { accessToken: string; accessTokenExpiresAt: string | number };
+    data: { accessToken: string; accessTokenExpiresAt: string | number; refreshToken?: string };
   };
   let body: RefreshResponseBody;
   try {
@@ -130,6 +150,23 @@ async function doRefresh(): Promise<string> {
 
   const { accessToken: newAccessToken, accessTokenExpiresAt: rawExpiry } = body.data;
   const expiresAt = normalizeExpiresAt(rawExpiry);
+
+  if (isNativeBuild) {
+    // The old token is spent once the API rotates it, so the new one must be
+    // stored before this refresh counts as done (the single-flight promise
+    // resolves only after this).
+    if (!body.data.refreshToken) {
+      performLogout();
+      throw new Error("Invalid refresh response");
+    }
+    try {
+      await writeRefreshToken(body.data.refreshToken);
+    } catch {
+      // Couldn't save it: the old token still works for the API's 60 s reuse
+      // window, so treat it as a hiccup rather than signing the user out.
+      throw new TransientRefreshError("Couldn't store the refreshed session");
+    }
+  }
 
   useAuthStore.getState().setAccessToken(newAccessToken, expiresAt);
 
@@ -153,10 +190,33 @@ export function performLogout(): void {
   // whether this call succeeds, so failures (offline, already-invalid token,
   // etc.) are deliberately swallowed rather than surfaced to the caller.
   // The API deletes the session and clears the httpOnly cookie.
+  if (isNativeBuild) {
+    void endNativeSession();
+    return;
+  }
   if (hasSession) {
     fetch(`${API_BASE}${LOGOUT_ENDPOINT}`, {
       method: "DELETE",
       credentials: "include",
     }).catch(() => {});
   }
+}
+
+/**
+ * Native logout: wipe the stored refresh token first, so the device is signed
+ * out even if the API can't be reached, then ask the API to end the session.
+ */
+async function endNativeSession(): Promise<void> {
+  let token: string | null = null;
+  try {
+    token = await readRefreshToken();
+    await removeRefreshToken();
+  } catch {
+    // Storage trouble: nothing more we can do locally.
+  }
+  if (!token) return;
+  fetch(`${API_BASE}${LOGOUT_ENDPOINT}`, {
+    method: "DELETE",
+    headers: { ...clientPlatformHeaders(), Authorization: `Refresh ${token}` },
+  }).catch(() => {});
 }

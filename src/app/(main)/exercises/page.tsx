@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/exercises";
 import { ApiError } from "@/lib/api-client";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { exerciseDetailHref } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const PAGE_LIMIT = 30;
@@ -213,7 +214,7 @@ export default function ExercisesPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.18, delay: Math.min(i * 0.03, 0.3) }}
                 >
-                  <Link href={`/exercises/${ex.id}`} className="block border-b border-line">
+                  <Link href={exerciseDetailHref(ex.id)} className="block border-b border-line">
                     <div className="flex min-h-16 items-center gap-3 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-base font-bold">{ex.name}</p>

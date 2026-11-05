@@ -20,6 +20,7 @@ import {
   type PublicWorkoutPlan,
 } from "@/lib/api/workout";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { planVersionHref } from "@/lib/routes";
 
 function AssignmentCard({
   assignment,
@@ -37,7 +38,7 @@ function AssignmentCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      onClick={() => router.push(`/workout/plans/${assignment.workout_program_version_id}`)}
+      onClick={() => router.push(planVersionHref(assignment.workout_program_version_id))}
       className={cn(
         "cursor-pointer rounded-2xl border bg-card p-[18px] transition-colors",
         assignment.is_active ? "border-border hover:border-input" : "border-dashed border-input opacity-80",
@@ -73,7 +74,7 @@ function AssignmentCard({
                 </Button>
               </Link>
               {assignment.is_editable && (
-                <Link href={`/workout/plans/${assignment.workout_program_version_id}?edit=1`}>
+                <Link href={planVersionHref(assignment.workout_program_version_id, { edit: true })}>
                   <Button variant="outline" className="h-13 rounded-xl px-4 text-sm font-semibold">
                     Edit
                   </Button>
@@ -121,7 +122,7 @@ function PublicPlanCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      onClick={() => router.push(`/workout/plans/${plan.workout_program_version_id}`)}
+      onClick={() => router.push(planVersionHref(plan.workout_program_version_id))}
       className="cursor-pointer rounded-2xl border border-border bg-card p-[18px] transition-colors hover:border-input"
     >
       <div className="grid grid-cols-3 border-b border-line pb-3">

@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UpdateSetPayload, WorkoutSet } from "@/lib/api/workout";
+import { durableJSONStorage } from "./durableStorage";
 
 const STORAGE_KEY = "apex-offline-workout-set-updates";
 
@@ -112,7 +113,13 @@ export const useWorkoutSetUpdateQueueStore = create<WorkoutSetUpdateQueueState>(
     }),
     {
       name: STORAGE_KEY,
+      storage: durableJSONStorage<Pick<WorkoutSetUpdateQueueState, "queue">>(),
       partialize: (state) => ({ queue: state.queue }),
+      // Edits made while an async restore was running win over the restored ones.
+      merge: (persisted, current) => ({
+        ...current,
+        queue: { ...(persisted as Partial<WorkoutSetUpdateQueueState> | undefined)?.queue, ...current.queue },
+      }),
     },
   ),
 );

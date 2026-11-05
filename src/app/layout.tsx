@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/shared/providers";
+import { isNativeBuild } from "@/lib/platform/build";
+import { STATIC_ROUTE_SCRIPT } from "@/lib/platform/static-route-script";
 
 // Barlow isn't a variable font on Google Fonts, so each weight is listed.
 const barlow = Barlow({
@@ -44,6 +46,12 @@ export default function RootLayout({
       lang="en"
       className={`${barlow.variable} ${barlowCondensed.variable} dark h-full antialiased`}
     >
+      {isNativeBuild && (
+        <head>
+          {/* Must run before Next loads; see static-route-script.ts. */}
+          <script dangerouslySetInnerHTML={{ __html: STATIC_ROUTE_SCRIPT }} />
+        </head>
+      )}
       <body className="min-h-full bg-background text-foreground">
         <div className="relative mx-auto max-w-md min-h-screen bg-background">
           <Providers>{children}</Providers>

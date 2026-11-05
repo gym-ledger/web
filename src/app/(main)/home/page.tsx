@@ -23,6 +23,7 @@ import {
 import { fetchUnreadNotificationCount } from "@/lib/api/notifications";
 import { useNotificationsChanged } from "@/lib/realtime/notificationStream";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { exerciseDetailHref } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const WEEK_DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -264,7 +265,7 @@ export default function HomePage() {
               {prs.map((pr, i) => (
                 <Link
                   key={pr.exercise_id}
-                  href={`/exercises/${pr.exercise_id}`}
+                  href={exerciseDetailHref(pr.exercise_id)}
                   className={cn(
                     "flex items-center justify-between gap-3 py-3",
                     i < prs.length - 1 && "border-b border-line",

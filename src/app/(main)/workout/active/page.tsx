@@ -43,6 +43,8 @@ import {
 import type { ExerciseListItem } from "@/lib/api/exercises";
 import { ApiError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { workoutSessionHref } from "@/lib/routes";
+import { setKeepAwake } from "@/lib/platform/native";
 
 type Step =
   | "loading"
@@ -163,6 +165,16 @@ export default function ActiveWorkoutPage() {
     workoutSession ? s.pendingCountForSession(workoutSession.id) : 0,
   );
   const draftId = useWorkoutDraftStore((s) => s.draft?.id ?? null);
+
+  // Native app: the screen stays on while a workout is open, so the phone on
+  // the bench doesn't lock between sets. (No-op on the web.)
+  const hasWorkoutSession = !!workoutSession;
+  useEffect(() => {
+    if (!hasWorkoutSession) return;
+    void setKeepAwake(true).catch(() => {});
+    return () => void setKeepAwake(false).catch(() => {});
+  }, [hasWorkoutSession]);
+
   // Not in the API yet — nothing has synced against this workout.
   const isDraft = !!workoutSession && workoutSession.id === draftId;
   const [exercises, setExercises] = useState<PlanExercise[]>([]);
@@ -580,7 +592,7 @@ export default function ActiveWorkoutPage() {
         toast.success("Workout finished — your sets will sync once you're back online.");
         router.push("/home");
       } else {
-        router.push(`/workout/history/${sessionId}?completed=1`);
+        router.push(workoutSessionHref(sessionId, { completed: true }));
       }
     } catch {
       toast.error("Failed to finish workout");

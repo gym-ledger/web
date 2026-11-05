@@ -1,4 +1,5 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
+import { isNativeBuild, writeRefreshToken } from "@/lib/platform";
 import type { AuthUser } from "@/auth/authTypes";
 
 /** How the user identifies themselves — the body shape every auth endpoint expects. */
@@ -6,11 +7,29 @@ export type Identity =
   | { method: "email"; email: string }
   | { method: "phone"; phoneNumber: { code: string; number: string } };
 
-/** The refresh token isn't here: the API sets it as an httpOnly cookie. */
+/**
+ * The refresh token isn't here. On the web the API sets it as an httpOnly
+ * cookie; in the native app the API returns it in the body and signIn()
+ * below moves it straight into secure storage.
+ */
 export interface LoginResponse {
   accessToken: string;
   accessTokenExpiresAt: string | number;
   user: AuthUser;
+}
+
+/**
+ * Native app only: the sign-in body also carries the refresh token. Store it
+ * in secure storage before the app counts as signed in, and keep it out of
+ * the object the rest of the app sees.
+ */
+async function keepRefreshToken(response: LoginResponse & { refreshToken?: string }): Promise<LoginResponse> {
+  const { refreshToken, ...rest } = response;
+  if (isNativeBuild) {
+    if (!refreshToken) throw new ApiError(500, "Sign-in response had no session token");
+    await writeRefreshToken(refreshToken);
+  }
+  return rest;
 }
 
 /** Instance settings that change which sign-in options the UI offers. */
@@ -42,12 +61,12 @@ export function sendLoginOtp(identity: Identity, captcha?: string) {
   return apiClient.post<null>("/auth/login/send-otp", { ...identity, captcha }, PUBLIC);
 }
 
-export function verifyLoginOtp(identity: Identity, otp: string) {
-  return apiClient.post<LoginResponse>("/auth/login/verify-otp", { ...identity, otp }, PUBLIC);
+export async function verifyLoginOtp(identity: Identity, otp: string) {
+  return keepRefreshToken(await apiClient.post<LoginResponse>("/auth/login/verify-otp", { ...identity, otp }, PUBLIC));
 }
 
-export function loginWithPassword(identity: Identity, password: string) {
-  return apiClient.post<LoginResponse>("/auth/login/password", { ...identity, password }, PUBLIC);
+export async function loginWithPassword(identity: Identity, password: string) {
+  return keepRefreshToken(await apiClient.post<LoginResponse>("/auth/login/password", { ...identity, password }, PUBLIC));
 }
 
 /** Resolves the same way whether or not an account exists for `identity`. */

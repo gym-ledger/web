@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 
+// Same output for every request; also lets the native static export include it.
+export const dynamic = "force-static";
+
 // Colors match the app's Performance Dark theme (src/app/globals.css) — the
 // app always renders dark (see the `dark` class hardcoded onto <html> in layout.tsx).
 export default function manifest(): MetadataRoute.Manifest {
