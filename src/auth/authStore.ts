@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import type { AuthStatus, AuthTokens, AuthUser } from "./authTypes";
 import { STORAGE_KEY, normalizeExpiresAt } from "./authConstants";
 import { clearApiResponseCache } from "@/lib/offline/apiResponseCache";
+import { isNativeBuild, readRefreshToken } from "@/lib/platform";
 
 interface AuthState {
   _hasHydrated: boolean;
@@ -14,7 +15,9 @@ interface AuthState {
   /**
    * Whether this browser signed in and hasn't signed out. The refresh token
    * itself lives in an httpOnly cookie JS can't see, so this flag is what
-   * tells the app a refresh is worth attempting on start-up.
+   * tells the app a refresh is worth attempting on start-up. (In the native
+   * app the token is in secure storage, which also restores this flag if the
+   * WebView's storage was wiped.)
    */
   hasSession: boolean;
   user: AuthUser | null;
@@ -78,10 +81,25 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ hasSession: state.hasSession }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        state.setHasHydrated(true);
-        if (!state.hasSession) {
-          state.clearAuth();
+        if (state.hasSession || !isNativeBuild) {
+          state.setHasHydrated(true);
+          if (!state.hasSession) state.clearAuth();
+          return;
         }
+        // The OS can clear a WebView's localStorage under storage pressure;
+        // the refresh token in secure storage survives that. Hydration only
+        // completes once this settles: AuthBootstrap would otherwise see "no
+        // session" first, log out, and delete the stored token.
+        readRefreshToken()
+          .catch(() => null)
+          .then((token) => {
+            if (token) {
+              useAuthStore.setState({ hasSession: true, status: "loading", _hasHydrated: true });
+            } else {
+              useAuthStore.getState().clearAuth();
+              useAuthStore.getState().setHasHydrated(true);
+            }
+          });
         // If a session exists, status stays "loading" until authBootstrap refreshes it
       },
     },

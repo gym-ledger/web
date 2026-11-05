@@ -1,4 +1,5 @@
 import { getValidAccessToken, refreshAccessToken, performLogout, TransientRefreshError } from "@/auth/tokenManager";
+import { clientPlatformHeaders } from "@/lib/platform";
 import { useAuthStore } from "@/auth/authStore";
 import {
   currentCacheGeneration,
@@ -47,6 +48,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const isFormData = fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
     ...(!isFormData && { "Content-Type": "application/json" }),
+    ...clientPlatformHeaders(),
     ...extraHeaders,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
