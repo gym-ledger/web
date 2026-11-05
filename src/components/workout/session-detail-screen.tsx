@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowLeft, CircleAlert, CornerDownRight, Loader2 } from "lucide-react";
@@ -18,6 +17,7 @@ import {
 } from "@/lib/api/workout";
 import { groupSetsWithDropsets, formatContraction } from "@/lib/workout-sets";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { exerciseDetailHref } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /** How far back to look for the previous run of the same day, and for PRs set during this session. */
@@ -267,7 +267,7 @@ function DetailContent({ sessionId, justCompleted }: { sessionId: string; justCo
           {summary.prs.map((pr) => (
             <Link
               key={pr.exercise_id}
-              href={`/exercises/${pr.exercise_id}`}
+              href={exerciseDetailHref(pr.exercise_id)}
               className="flex items-center justify-between gap-3 rounded-xl border border-success-line bg-success-surface px-3.5 py-3"
             >
               <span className="truncate text-[15px] font-semibold">{pr.exercise_name}</span>
@@ -359,14 +359,8 @@ function DetailContent({ sessionId, justCompleted }: { sessionId: string; justCo
   );
 }
 
-export default function WorkoutHistoryDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ sessionId: string }>;
-  searchParams: Promise<{ completed?: string }>;
-}) {
-  const { sessionId } = use(params);
-  const { completed } = use(searchParams);
-  return <DetailContent sessionId={sessionId} justCompleted={completed === "1"} />;
+// One finished workout. Routed as /workout/history/[sessionId] on the web and
+// /workout/history/session?id= in the native build (see src/lib/routes.ts).
+export function SessionDetailScreen({ sessionId, justCompleted }: { sessionId: string; justCompleted: boolean }) {
+  return <DetailContent sessionId={sessionId} justCompleted={justCompleted} />;
 }

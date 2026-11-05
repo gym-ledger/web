@@ -2,6 +2,8 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
+// Same image for every request; also lets the native static export include it.
+export const dynamic = "force-static";
 
 // No border-radius here — iOS applies its own rounded-square mask to
 // apple-touch-icon, so a full-bleed square avoids a double-rounded look.

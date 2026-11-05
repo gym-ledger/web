@@ -13,6 +13,7 @@ import { BodyTab } from "@/components/weight/body-tab";
 import { ProgressRing } from "@/components/shared/progress-ring";
 import { groupSetsWithDropsets } from "@/lib/workout-sets";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { exerciseDetailHref } from "@/lib/routes";
 import {
   fetchProgressOverview,
   fetchRecentPRs,
@@ -110,7 +111,7 @@ function LatestPrCard({ pr, units }: { pr: PersonalRecord; units: "kg" | "lbs" }
       className="rounded-2xl border border-border bg-card p-4"
     >
       <span className="label-caps text-success">Latest PR</span>
-      <Link href={`/exercises/${pr.exercise_id}`} className="mt-0.5 flex items-center gap-1">
+      <Link href={exerciseDetailHref(pr.exercise_id)} className="mt-0.5 flex items-center gap-1">
         <h3 className="truncate font-display text-2xl leading-tight font-bold">{pr.exercise_name}</h3>
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </Link>
@@ -314,7 +315,7 @@ export function ProgressPageClient({ defaultTab }: Props) {
             ) : (
               <div className="flex flex-col border-t border-line">
                 {filteredPrs.map((pr, i) => (
-                  <Link key={pr.exercise_id} href={`/exercises/${pr.exercise_id}`} className="block border-b border-line">
+                  <Link key={pr.exercise_id} href={exerciseDetailHref(pr.exercise_id)} className="block border-b border-line">
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}

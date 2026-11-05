@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { motion } from "framer-motion";
@@ -23,13 +22,9 @@ function formatShortDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export default function ExerciseDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-
+// One exercise with the user's history on it. Routed as /exercises/[id] on the
+// web and /exercises/detail?id= in the native build (see src/lib/routes.ts).
+export function ExerciseDetailScreen({ id }: { id: string }) {
   const query = useCachedQuery<{ exercise: ExerciseDetail; history: ExerciseHistorySession[] }>(
     `exercises/detail/${id}/${HISTORY_LIMIT}`,
     async () => {

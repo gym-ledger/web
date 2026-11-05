@@ -11,6 +11,7 @@ import {
   type WorkoutSessionsPage,
 } from "@/lib/api/workout";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { workoutSessionHref } from "@/lib/routes";
 
 const PAGE_SIZE = 20;
 
@@ -34,7 +35,7 @@ function SessionRow({ session, delay }: { session: WorkoutSessionListItem; delay
   const duration = formatDuration(session.started_at, session.completed_at);
 
   return (
-    <Link href={`/workout/history/${session.id}`} className="block border-b border-line">
+    <Link href={workoutSessionHref(session.id)} className="block border-b border-line">
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}

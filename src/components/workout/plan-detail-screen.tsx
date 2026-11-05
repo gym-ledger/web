@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,6 +22,7 @@ import {
 import type { ExerciseListItem } from "@/lib/api/exercises";
 import { ApiError } from "@/lib/api-client";
 import { useCachedQuery } from "@/lib/offline/useCachedQuery";
+import { planVersionHref } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { AddExerciseSheet } from "@/components/workout/add-exercise-sheet";
 import { DEFAULT_PLAN_TARGETS, PlanExerciseSheet } from "@/components/workout/plan-exercise-sheet";
@@ -224,16 +225,10 @@ function DayCard({
   );
 }
 
-export default function PlanDetailPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ versionId: string }>;
-  searchParams: Promise<{ edit?: string }>;
-}) {
-  const { versionId } = use(params);
-  // "Edit" on a My Plans card opens the plan straight into edit mode.
-  const startInEditMode = use(searchParams).edit === "1";
+// One plan version. Routed as /workout/plans/[versionId] on the web and
+// /workout/plans/version?id= in the native build (see src/lib/routes.ts).
+// `startInEditMode`: "Edit" on a My Plans card opens the plan straight into edit mode.
+export function PlanDetailScreen({ versionId, startInEditMode }: { versionId: string; startInEditMode: boolean }) {
   const router = useRouter();
 
   const planQuery = useCachedQuery<PlanDetail>(`workout/plan/${versionId}`, () => fetchPlanDetail(versionId));
@@ -343,7 +338,7 @@ export default function PlanDetailPage({
       toast.success("Plan updated to the latest version");
       setConfirmReset(false);
       setEditing(false);
-      router.replace(`/workout/plans/${assignment.workout_program_version_id}`);
+      router.replace(planVersionHref(assignment.workout_program_version_id));
     } catch (err) {
       toast.error(errorMessage(err, "Failed to update plan"));
     } finally {
@@ -445,7 +440,7 @@ export default function PlanDetailPage({
               </p>
             </div>
             <div className="flex gap-2">
-              <Link href={`/workout/plans/${plan.update_available.workout_program_version_id}`} className="flex-1">
+              <Link href={planVersionHref(plan.update_available.workout_program_version_id)} className="flex-1">
                 <Button variant="outline" className="h-11 w-full rounded-xl text-sm font-semibold">
                   See what&apos;s new
                 </Button>
