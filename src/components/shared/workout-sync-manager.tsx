@@ -5,6 +5,9 @@ import { flushWorkoutSetQueue } from "@/lib/offline/flushWorkoutSetQueue";
 import { useWorkoutSetQueueStore } from "@/lib/offline/workoutSetQueue";
 import { flushWorkoutSetUpdateQueue } from "@/lib/offline/flushWorkoutSetUpdateQueue";
 import { useWorkoutSetUpdateQueueStore } from "@/lib/offline/workoutSetUpdateQueue";
+import { onAppResume, onNetworkReconnect } from "@/lib/platform/native";
+import { getValidAccessToken } from "@/auth/tokenManager";
+import { useAuthStore } from "@/auth/authStore";
 
 const NORMAL_INTERVAL_MS = 30_000;
 const BACKOFF_INTERVAL_MS = 60_000;
@@ -37,11 +40,24 @@ export function WorkoutSyncManager() {
       flushWorkoutSetUpdateQueue();
     }
     window.addEventListener("online", handleOnline);
+    // Native app: the OS's own network status (the WebView's "online" event
+    // can lag or miss a reconnect), and coming back to the app. On resume the
+    // access token has often expired in the background, so refresh it first.
+    const stopReconnect = onNetworkReconnect(handleOnline);
+    const stopResume = onAppResume(() => {
+      if (useAuthStore.getState().hasSession) {
+        getValidAccessToken().catch(() => {}).finally(handleOnline);
+      } else {
+        handleOnline();
+      }
+    });
 
     return () => {
       cancelled = true;
       clearTimeout(timeoutId);
       window.removeEventListener("online", handleOnline);
+      stopReconnect();
+      stopResume();
     };
   }, []);
 

@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import { ApiError } from "@/lib/api-client";
 import { startWorkoutSession, type WorkoutSession } from "@/lib/api/workout";
 import { useWorkoutSetQueueStore } from "./workoutSetQueue";
+import { durableJSONStorage } from "./durableStorage";
 
 const STORAGE_KEY = "apex-workout-draft";
 
@@ -52,7 +53,13 @@ export const useWorkoutDraftStore = create<WorkoutDraftState>()(
     }),
     {
       name: STORAGE_KEY,
+      storage: durableJSONStorage<Pick<WorkoutDraftState, "draft">>(),
       partialize: (state) => ({ draft: state.draft }),
+      // A draft picked while an async restore was running wins over the restored one.
+      merge: (persisted, current) => ({
+        ...current,
+        draft: current.draft ?? (persisted as Partial<WorkoutDraftState> | undefined)?.draft ?? null,
+      }),
     },
   ),
 );

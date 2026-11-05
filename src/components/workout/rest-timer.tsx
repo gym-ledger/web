@@ -2,6 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
+import {
+  cancelRestDoneNotification,
+  ensureNotificationPermission,
+  onAppStateChange,
+  scheduleRestDoneNotification,
+} from "@/lib/platform/native";
 
 interface RestTimerProps {
   initialSeconds: number;
@@ -66,6 +72,22 @@ export function RestTimer({ initialSeconds, onSkip, onFinish }: RestTimerProps) 
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [endAtMs]);
+
+  // Native app: a "rest's over" notification while the app is in the
+  // background, so a locked phone still says when to lift. Scheduled only on
+  // leaving the app and cancelled on return, so it never doubles up with the
+  // vibration above. (No-ops on the web.)
+  useEffect(() => {
+    void ensureNotificationPermission().catch(() => {});
+    const unsubscribe = onAppStateChange((isActive) => {
+      const task = isActive ? cancelRestDoneNotification() : scheduleRestDoneNotification(new Date(endAtMs));
+      task.catch(() => {});
+    });
+    return () => {
+      unsubscribe();
+      void cancelRestDoneNotification().catch(() => {});
     };
   }, [endAtMs]);
 

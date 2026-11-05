@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { DropSetFields, WorkoutSet, WorkoutSetAlarm } from "@/lib/api/workout";
+import { durableJSONStorage, mergeQueuedItems } from "./durableStorage";
 
 const STORAGE_KEY = "apex-offline-workout-sets";
 
@@ -114,7 +115,16 @@ export const useWorkoutSetQueueStore = create<WorkoutSetQueueState>()(
     }),
     {
       name: STORAGE_KEY,
+      storage: durableJSONStorage<Pick<WorkoutSetQueueState, "queue">>(),
       partialize: (state) => ({ queue: state.queue }),
+      merge: (persisted, current) => ({
+        ...current,
+        queue: mergeQueuedItems(
+          (persisted as Partial<WorkoutSetQueueState> | undefined)?.queue,
+          current.queue,
+          (q) => q.clientId,
+        ),
+      }),
     },
   ),
 );
