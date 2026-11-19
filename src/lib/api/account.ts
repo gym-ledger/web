@@ -16,8 +16,9 @@ export interface DataExport {
   expires_at: string | null;
 }
 
-/** How the user confirms deleting the account; null = they need to set a password first. */
-export type DeletionConfirmMethod = "password" | "email_code" | "phone_code" | null;
+/** How the user confirms a sensitive action (deleting the account, changing its email); null = they need to set a password first. */
+export type ConfirmMethod = "password" | "email_code" | "phone_code" | null;
+export type DeletionConfirmMethod = ConfirmMethod;
 
 export interface AccountData {
   deletion: {
@@ -25,6 +26,9 @@ export interface AccountData {
     requested_at: string | null;
     grace_days: number;
     confirm_with: DeletionConfirmMethod;
+  };
+  email_change: {
+    confirm_with: ConfirmMethod;
   };
   export: {
     latest: DataExport | null;
@@ -87,4 +91,29 @@ export async function requestAccountDeletion(
 /** Keeps the account: clears a scheduled deletion (after signing in during the 30 days). */
 export async function cancelAccountDeletion(): Promise<{ user: UserProfile }> {
   return apiClient.post<{ user: UserProfile }>("/user/account/deletion/cancel");
+}
+
+/** For accounts without a password: a code to the current email/phone that confirms an email change. */
+export async function sendEmailChangeConfirmCode(): Promise<{ sent_to: "email" | "phone" }> {
+  return apiClient.post<{ sent_to: "email" | "phone" }>("/user/account/email/confirm-code");
+}
+
+/**
+ * Sends a 6-digit code to `email`, the address the user wants instead. The
+ * first call confirms it's them (password, or the code from
+ * sendEmailChangeConfirmCode); resends pass the returned change_token instead.
+ */
+export async function sendEmailChangeCode(
+  body: { email: string } & ({ password: string } | { code: string } | { change_token: string }),
+): Promise<{ email: string; change_token: string }> {
+  return apiClient.post<{ email: string; change_token: string }>("/user/account/email/send-code", body);
+}
+
+/** Sets the new email once its code is right; the old address gets a notice. */
+export async function verifyEmailChange(body: {
+  email: string;
+  code: string;
+  change_token: string;
+}): Promise<{ user: UserProfile }> {
+  return apiClient.post<{ user: UserProfile }>("/user/account/email/verify", body);
 }

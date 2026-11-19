@@ -9,12 +9,14 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Segmented } from "@/components/shared/segmented";
 import { Button } from "@/components/ui/button";
 import { ChangePasswordDrawer } from "@/components/profile/change-password-drawer";
+import { ChangeEmailDrawer } from "@/components/profile/change-email-drawer";
 import { WeightGoalDrawer, describeWeightGoal } from "@/components/profile/weight-goal-drawer";
 import { EndWeightGoalDrawer } from "@/components/profile/end-weight-goal-drawer";
 import { AiCheckinsConsentDrawer } from "@/components/profile/ai-checkins-consent-drawer";
 import { YourDataSection } from "@/components/profile/your-data-section";
 import { ApiError } from "@/lib/api-client";
 import { PRIVACY_AI_SECTION_ID } from "@/lib/privacy-policy";
+import { fetchAccountData, type ConfirmMethod } from "@/lib/api/account";
 import {
   fetchPreferences,
   fetchProfile,
@@ -76,6 +78,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  // How an email change is confirmed; undefined until known (the row stays hidden).
+  const [emailConfirmWith, setEmailConfirmWith] = useState<ConfirmMethod | undefined>(undefined);
   const [goalState, setGoalState] = useState<WeightGoalState | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
   const [endGoalOpen, setEndGoalOpen] = useState(false);
@@ -101,9 +106,10 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    Promise.allSettled([fetchProfile(), fetchPreferences(), fetchWeightGoal()])
-      .then(([p, prefs, goal]) => {
+    Promise.allSettled([fetchProfile(), fetchPreferences(), fetchWeightGoal(), fetchAccountData()])
+      .then(([p, prefs, goal, account]) => {
         if (p.status === "fulfilled") setProfile(p.value);
+        if (account.status === "fulfilled") setEmailConfirmWith(account.value.email_change?.confirm_with ?? null);
         if (goal.status === "fulfilled") setGoalState(goal.value);
         if (prefs.status === "fulfilled" && prefs.value) {
           setSaved(prefs.value);
@@ -280,6 +286,18 @@ export default function SettingsPage() {
           {profile && (
             <section className="flex flex-col">
               <h2 className="label-caps border-b border-input pb-2">Security</h2>
+              {emailConfirmWith !== undefined && (
+                <Row label="Email" sub={profile.email ?? "Not set"}>
+                  <button
+                    type="button"
+                    onClick={() => setEmailOpen(true)}
+                    aria-label={profile.email ? "Change email" : "Add email"}
+                    className="h-9 rounded-full border border-input bg-card px-3 text-[13px] font-semibold"
+                  >
+                    {profile.email ? "Change" : "Add email"}
+                  </button>
+                </Row>
+              )}
               <Row
                 label="Password"
                 sub={profile.has_password ? "Sign in with a password or a code" : "Not set — you sign in with a code"}
@@ -328,7 +346,24 @@ export default function SettingsPage() {
           open={passwordOpen}
           hasPassword={profile.has_password}
           onClose={() => setPasswordOpen(false)}
-          onSaved={() => setProfile((p) => (p ? { ...p, has_password: true } : p))}
+          onSaved={() => {
+            setProfile((p) => (p ? { ...p, has_password: true } : p));
+            setEmailConfirmWith("password");
+          }}
+        />
+      )}
+
+      {profile && emailConfirmWith !== undefined && (
+        <ChangeEmailDrawer
+          open={emailOpen}
+          currentEmail={profile.email}
+          confirmWith={emailConfirmWith}
+          onClose={() => setEmailOpen(false)}
+          onChanged={(user) => {
+            setProfile(user);
+            // A phone-only account that just added an email now confirms with codes to it.
+            setEmailConfirmWith((m) => (m === "password" ? m : "email_code"));
+          }}
         />
       )}
     </div>
